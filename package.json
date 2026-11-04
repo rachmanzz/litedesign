@@ -1,6 +1,8 @@
 {
   "name": "litedesign-monorepo",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Muhammad Abdurrahman",
   "type": "module",
   "packageManager": "pnpm@12.16.1",
   "engines": {

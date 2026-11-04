@@ -2,6 +2,8 @@
   "name": "@rahmantech/litedesign",
   "version": "0.1.0",
   "description": "Figma-style grid, gap, and alignment on the real web page, plus an MCP bridge for agents.",
+  "license": "Apache-2.0",
+  "author": "Muhammad Abdurrahman",
   "type": "module",
   "bin": {
     "litedesign": "dist/index.js"
@@ -14,7 +16,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "node ../../scripts/build.mjs"
+    "build": "node ../../scripts/build.mjs",
+    "prepack": "node -e \"require('node:fs').copyFileSync('../../LICENSE','LICENSE')\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

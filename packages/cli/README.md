@@ -22,7 +22,10 @@ manual step.
 ```bash
 litedesign extension path     # print the folder to load unpacked
 litedesign extension update   # re-copy after an upgrade
-litedesign doctor             # check node, extension, and port
+litedesign doctor             # check node, extension, config, and port
+litedesign ws start           # start the bridge in the background
+litedesign ws stop            # stop the bridge
+litedesign ws status          # show the bridge and connected pages
 litedesign mcp                # MCP server (stdio)
 ```
 
@@ -41,15 +44,16 @@ litedesign mcp                # MCP server (stdio)
 
 ## Tools
 
-| Tool                   | What it returns                                           |
-| ---------------------- | --------------------------------------------------------- |
-| `capabilities`         | version, drivers, mode, connected pages, valid rules      |
-| `inspect`              | tree summary + screenshot; opens the page                 |
-| `await_page`           | wait for the page from `inspect` to connect               |
-| `measure`              | box model, computed styles, gaps for one selector         |
-| `find_issues`          | rule violations with selector, actual, expected, severity |
-| `screenshot`           | PNG of the viewport or one element                        |
-| `screenshot_annotated` | PNG with grid, guides, gaps, and issue labels             |
+| Tool                   | What it returns                                             |
+| ---------------------- | ----------------------------------------------------------- |
+| `capabilities`         | version, drivers, mode, connected pages, valid rules        |
+| `inspect`              | tree summary + screenshot; opens the page                   |
+| `await_page`           | wait for the page from `inspect` to connect                 |
+| `measure`              | box model, computed styles, gaps for one selector           |
+| `find_issues`          | rule violations with selector, actual, expected, severity   |
+| `screenshot`           | PNG of the viewport or one element                          |
+| `screenshot_annotated` | PNG with grid, guides, gaps, and issue labels               |
+| `overlay`              | shows or hides the layers; answers with what the page shows |
 
 Call `inspect` first. It opens the page and keeps it alive for the other tools.
 
@@ -65,13 +69,17 @@ connect. A timeout or a different URL comes back as a status, not an error.
 The extension captures the visible viewport only. Full-page screenshots need
 Playwright.
 
-The hub lives inside the MCP server, so a missing server is normal. The
-extension stops retrying after five attempts and puts a `!` badge on the icon;
-hovering it tells you to run `litedesign mcp`. Click the icon to retry.
+The hub is a standalone daemon (`litedesign ws start`), so the extension keeps
+working when no MCP server is running. The MCP server starts the daemon by
+itself when none is running, then connects to it as a client.
 
 ## Status
 
-M3b — both drivers are complete. Playwright opens pages by itself; the
-extension drives the tab you already have open through a local WebSocket hub.
-The extension can measure, capture the viewport, crop one element, and annotate
-with the same overlay.
+Both drivers are complete. Playwright opens pages by itself; the extension
+drives the tab you already have open through the local WebSocket daemon. The
+extension can measure, capture the viewport, crop one element, annotate with
+the same overlay, and draw the layers on request.
+
+## License
+
+Apache License 2.0. See the `LICENSE` file in the repository.

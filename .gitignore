@@ -12,5 +12,8 @@ dist/
 # --- local agent rules ---
 AGENTS.md
 
+# --- copied at pack time from the repository root ---
+packages/cli/LICENSE
+
 # --- knl-view (machine-local) ---
 knl-config.json
