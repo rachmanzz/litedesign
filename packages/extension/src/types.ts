@@ -39,6 +39,8 @@ declare global {
     __litedesign?: Core
     __litedesign_state__?: 'starting' | 'active'
     __litedesign_teardown__?: () => void
+    /** Replaces the visible layers without remounting. */
+    __litedesign_layers__?: (layers: LayerName[]) => void
     /** True once the content-script bridge is listening. */
     __litedesign_bridge__?: boolean
     /** Toggle the user overlay. The service worker sends `toggle` here. */

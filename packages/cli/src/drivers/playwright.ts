@@ -1,14 +1,21 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { LAYERS } from '@litedesign/core'
 import type { Graph, GraphNode, Issue } from '@litedesign/core/types'
 import type { Browser, BrowserContext, LaunchOptions, Page } from 'playwright-core'
 import { ToolError } from '../mcp/errors.js'
-import type { AnnotateOptions, Driver, MeasureResult, ShotOptions, Viewport } from './types.js'
+import type {
+  AnnotateOptions,
+  Driver,
+  MeasureResult,
+  OverlayOptions,
+  ShotOptions,
+  Viewport,
+} from './types.js'
 
 type Playwright = typeof import('playwright-core')
 
-const LAYERS = ['grid', 'guide', 'gap', 'issue'] as const
 const DEFAULT_VIEWPORT = { width: 1280, height: 800 }
 
 export type PlaywrightDriverOptions = {
@@ -159,7 +166,7 @@ export class PlaywrightDriver implements Driver {
 
         target.__litedesign_handle__ = target.__litedesign.render(graph, { layers: input.layers })
       },
-      { layers: [...LAYERS], rules: options.rules },
+      { layers: ['grid', 'guide', 'gap', 'issue'], rules: options.rules },
     )
 
     // The overlay draws synchronously; two frames guarantee it is painted
@@ -174,6 +181,32 @@ export class PlaywrightDriver implements Driver {
     // The overlay is fixed to the viewport, so a full-page capture would only
     // annotate the first screen. Keep annotated captures viewport-only.
     return page.screenshot({ type: 'png' })
+  }
+
+  async overlay(options: OverlayOptions): Promise<void> {
+    const page = await this.#requirePage()
+    await this.#inject(page)
+
+    await page.evaluate(
+      (input) => {
+        const target = window as unknown as {
+          __litedesign: {
+            buildGraph: (root: Element) => Graph
+            render: (graph: Graph, options: { layers: string[] }) => { destroy(): void }
+          }
+          __litedesign_handle__?: { destroy(): void }
+        }
+
+        target.__litedesign_handle__?.destroy()
+        target.__litedesign_handle__ = undefined
+
+        if (!input.enabled) return
+
+        const graph = target.__litedesign.buildGraph(document.body)
+        target.__litedesign_handle__ = target.__litedesign.render(graph, { layers: input.layers })
+      },
+      { enabled: options.enabled, layers: options.layers ?? [...LAYERS] },
+    )
   }
 
   async close(): Promise<void> {

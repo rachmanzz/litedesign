@@ -96,4 +96,38 @@ describe('Hub', () => {
     const hub = await start()
     await expect(hub.request(99, 'graph')).rejects.toThrow(/no longer connected/)
   })
+
+  it('answers any request before a page is announced', async () => {
+    const hub = await start()
+    const socket = await open(`ws://127.0.0.1:${hub.port}`)
+
+    expect(hub.hasClient()).toBe(true)
+
+    const reply = next(socket).then((message) => {
+      expect(message.action).toBe('attach')
+      socket.send(
+        JSON.stringify({
+          type: 'response',
+          id: message.id,
+          ok: true,
+          result: { tabId: 4, url: 'http://example.test/', title: 'Test' },
+        }),
+      )
+    })
+
+    expect(await hub.requestAny('attach')).toEqual({
+      tabId: 4,
+      url: 'http://example.test/',
+      title: 'Test',
+    })
+
+    await reply
+  })
+
+  it('has no client before the extension connects', async () => {
+    const hub = await start()
+
+    expect(hub.hasClient()).toBe(false)
+    await expect(hub.requestAny('attach')).rejects.toThrow(/not connected/)
+  })
 })

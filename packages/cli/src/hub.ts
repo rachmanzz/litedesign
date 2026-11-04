@@ -40,6 +40,7 @@ export class Hub {
   readonly #server: WebSocketServer
   readonly #clients = new Map<number, Client>()
   readonly #socketTab = new Map<WebSocket, number>()
+  readonly #sockets = new Set<WebSocket>()
   readonly #pending = new Map<string, Pending>()
   readonly #waiters = new Set<Waiter>()
   #ping: ReturnType<typeof setInterval> | undefined
@@ -97,9 +98,42 @@ export class Hub {
   ): Promise<T> {
     const client = this.#clients.get(tabId)
     if (client === undefined) {
-      throw new ToolError('the page is no longer connected. Click the litedesign icon again.')
+      throw new ToolError('the page is no longer connected. Call inspect again.')
     }
 
+    return this.#ask<T>(client.socket, action, payload, timeoutMs)
+  }
+
+  /**
+   * Asks any connected worker, not a specific tab. This is how the server
+   * attaches to a page: the worker picks the tab the human is looking at.
+   */
+  async requestAny<T>(action: string, payload?: unknown, timeoutMs = 30000): Promise<T> {
+    const socket = this.#firstSocket()
+
+    if (socket === undefined) {
+      throw new ToolError(
+        'the extension is not connected. Is Chrome open with the extension loaded?',
+      )
+    }
+
+    return this.#ask<T>(socket, action, payload, timeoutMs)
+  }
+
+  /** True when at least one extension worker is connected. */
+  hasClient(): boolean {
+    return this.#firstSocket() !== undefined
+  }
+
+  #firstSocket(): WebSocket | undefined {
+    for (const socket of this.#sockets) {
+      if (socket.readyState === WebSocket.OPEN) return socket
+    }
+
+    return undefined
+  }
+
+  #ask<T>(socket: WebSocket, action: string, payload: unknown, timeoutMs: number): Promise<T> {
     const id = randomUUID()
 
     return new Promise<T>((resolve, reject) => {
@@ -116,11 +150,11 @@ export class Hub {
         resolve: resolve as (value: unknown) => void,
         reject,
         timer,
-        socket: client.socket,
+        socket,
         action,
       })
 
-      client.socket.send(JSON.stringify({ type: 'request', id, action, payload }))
+      socket.send(JSON.stringify({ type: 'request', id, action, payload }))
     })
   }
 
@@ -167,7 +201,7 @@ export class Hub {
     }
     this.#pending.clear()
 
-    const sockets = [...this.#socketTab.keys()]
+    const sockets = [...this.#sockets]
     for (const socket of sockets) socket.close(1001, 'litedesign server closing')
 
     await new Promise<void>((resolve) => {
@@ -184,6 +218,7 @@ export class Hub {
   }
 
   #accept(socket: WebSocket): void {
+    this.#sockets.add(socket)
     socket.on('message', (data) => this.#receive(socket, data.toString()))
     socket.on('close', () => this.#drop(socket))
     socket.on('error', () => this.#drop(socket))
@@ -279,6 +314,7 @@ export class Hub {
   #drop(socket: WebSocket): void {
     const tabId = this.#socketTab.get(socket)
     this.#socketTab.delete(socket)
+    this.#sockets.delete(socket)
 
     if (tabId !== undefined && this.#clients.get(tabId)?.socket === socket) {
       this.#clients.delete(tabId)
@@ -302,7 +338,7 @@ export class Hub {
   }
 }
 
-function sameUrl(a: string, b: string): boolean {
+export function sameUrl(a: string, b: string): boolean {
   return normalize(a) === normalize(b)
 }
 

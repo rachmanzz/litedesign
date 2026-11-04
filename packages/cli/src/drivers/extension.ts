@@ -1,13 +1,23 @@
 import type { Graph, Issue } from '@litedesign/core/types'
-import type { Hub, HubPage } from '../hub.js'
-import { AwaitingUserError, ToolError } from '../mcp/errors.js'
-import type { AnnotateOptions, Driver, MeasureResult, ShotOptions, WaitResult } from './types.js'
+import { type Hub, type HubPage, sameUrl } from '../hub.js'
+import { AwaitingUserError, MismatchError, ToolError } from '../mcp/errors.js'
+import type {
+  AnnotateOptions,
+  Driver,
+  MeasureResult,
+  OverlayOptions,
+  ShotOptions,
+  WaitResult,
+} from './types.js'
 
 type ShotPayload = { data: string }
 
 /**
  * Drives the page the user already has open. The extension owns the tab, so
  * this driver never opens, navigates, or closes anything.
+ *
+ * `open` does not need a click: it asks the connected worker to attach to the
+ * tab the human is looking at, then checks that the URL is the expected one.
  */
 export class ExtensionDriver implements Driver {
   readonly #hub: Hub
@@ -20,7 +30,15 @@ export class ExtensionDriver implements Driver {
   async open(url: string): Promise<void> {
     this.#target = url
 
-    if (this.#hub.find(url) === undefined) throw new AwaitingUserError(url)
+    if (this.#hub.find(url) !== undefined) return
+
+    if (!this.#hub.hasClient()) throw new AwaitingUserError(url)
+
+    const page = await this.#hub.requestAny<HubPage>('attach')
+
+    if (!sameUrl(page.url, url)) throw new MismatchError(url, page.url)
+
+    this.#target = page.url
   }
 
   async waitForPage(url: string, timeoutMs: number): Promise<WaitResult> {
@@ -57,6 +75,10 @@ export class ExtensionDriver implements Driver {
     return decode(await this.#request<ShotPayload>('annotate', options))
   }
 
+  async overlay(options: OverlayOptions): Promise<void> {
+    await this.#request('overlay', options)
+  }
+
   async close(): Promise<void> {
     // The page belongs to the user. Closing it would be hostile.
   }
@@ -73,7 +95,7 @@ export class ExtensionDriver implements Driver {
 
     const page = this.#hub.find(this.#target)
     if (page === undefined) {
-      throw new ToolError('the page is no longer connected. Click the litedesign icon again.')
+      throw new ToolError('the page is no longer connected. Open it and call inspect again.')
     }
 
     return page

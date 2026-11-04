@@ -1,4 +1,4 @@
-import { boot } from './boot.js'
+import { applyOverlay, boot } from './boot.js'
 import type { Core, Graph, LayerName, OverlayHandle } from './types.js'
 
 type Payload = {
@@ -6,6 +6,7 @@ type Payload = {
   rules?: string[]
   layers?: LayerName[]
   fullPage?: boolean
+  enabled?: boolean
 }
 
 type Rect = { x: number; y: number; w: number; h: number }
@@ -61,6 +62,9 @@ async function respond(core: Core, raw: unknown): Promise<Response> {
       return { ok: true, result: true }
     case 'toggle':
       await boot(core)
+      return { ok: true }
+    case 'overlay':
+      await applyOverlay(core, { enabled: payload.enabled !== false, layers: payload.layers })
       return { ok: true }
     case 'graph':
       return { ok: true, result: core.buildGraph(root()) }

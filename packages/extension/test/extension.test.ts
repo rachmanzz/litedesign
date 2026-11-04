@@ -260,7 +260,9 @@ loadSuite('unpacked extension', () => {
 
       expect(manifest.manifest_version).toBe(3)
       expect(manifest.permissions).toEqual(['activeTab', 'scripting', 'storage'])
-      expect(manifest.host_permissions).toBeUndefined()
+      // The service worker attaches to the active tab on its own; that needs a
+      // standing host permission, because there is no click to grant activeTab.
+      expect(manifest.host_permissions).toEqual(['http://*/*', 'https://*/*'])
 
       const background = manifest.background
       const serviceWorker =

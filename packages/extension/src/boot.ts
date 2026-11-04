@@ -34,6 +34,36 @@ export async function boot(core: Core): Promise<void> {
   }
 }
 
+/**
+ * MCP control. `boot` toggles because a click means "flip it"; this sets the
+ * state, because the agent says exactly what it wants to see.
+ */
+export async function applyOverlay(
+  core: Core,
+  options: { enabled: boolean; layers?: LayerName[] },
+): Promise<void> {
+  if (!options.enabled) {
+    window.__litedesign_teardown__?.()
+    return
+  }
+
+  const layers = options.layers ?? (await loadLayers())
+
+  if (window.__litedesign_state__ === 'active') {
+    window.__litedesign_layers__?.(layers)
+    return
+  }
+
+  window.__litedesign_state__ = 'starting'
+
+  try {
+    mount(core, layers)
+  } catch (error) {
+    window.__litedesign_state__ = undefined
+    throw error
+  }
+}
+
 function mount(core: Core, initial: LayerName[]): void {
   // `document.body` can be missing if the user clicks before parsing finishes;
   // documentElement is always there and catches the body once it appears.
@@ -51,6 +81,7 @@ function mount(core: Core, initial: LayerName[]): void {
     handle = undefined
     observer = undefined
     window.__litedesign_teardown__ = undefined
+    window.__litedesign_layers__ = undefined
     window.__litedesign_state__ = undefined
   }
 
@@ -60,14 +91,19 @@ function mount(core: Core, initial: LayerName[]): void {
     toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
   }
 
+  const setLayers = (next: LayerName[]): void => {
+    layers = next
+    handle?.setLayers(layers)
+    toolbar.setLayers(layers)
+    void saveLayers(layers)
+  }
+
   toolbar = createToolbar({
     layers,
     onToggle(layer, enabled): void {
-      layers = enabled ? [...new Set([...layers, layer])] : layers.filter((name) => name !== layer)
-
-      handle?.setLayers(layers)
-      toolbar.setLayers(layers)
-      void saveLayers(layers)
+      setLayers(
+        enabled ? [...new Set([...layers, layer])] : layers.filter((name) => name !== layer),
+      )
     },
     onClose: teardown,
   })
@@ -77,6 +113,7 @@ function mount(core: Core, initial: LayerName[]): void {
   handle = core.render(graph, { layers, toolbar: toolbar.element })
   observer = observeChanges({ root, onChange: refresh })
 
+  window.__litedesign_layers__ = setLayers
   window.__litedesign_teardown__ = teardown
   window.__litedesign_state__ = 'active'
 }

@@ -1,6 +1,13 @@
+import type { LayerName } from '@litedesign/core'
 import type { Gap, Graph, GraphNode, Issue } from '@litedesign/core/types'
 
 export type Viewport = { w: number; h: number }
+
+export type OverlayOptions = {
+  enabled: boolean
+  /** Layers to show. Omit to keep the ones the user last chose. */
+  layers?: LayerName[]
+}
 
 export type ShotOptions = {
   selector?: string
@@ -45,6 +52,8 @@ export type Driver = {
   measure(selector: string): Promise<MeasureResult>
   screenshot(options?: ShotOptions): Promise<Buffer>
   annotate(options?: AnnotateOptions): Promise<Buffer>
+  /** Draw or clear the overlay in the page the human is looking at. */
+  overlay(options: OverlayOptions): Promise<void>
   close(): Promise<void>
   /** Extension only: block until a page with this URL connects. */
   waitForPage?(url: string, timeoutMs: number): Promise<WaitResult>

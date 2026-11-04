@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { WebSocket } from 'ws'
 import { ExtensionDriver } from '../src/drivers/extension.js'
 import { Hub } from '../src/hub.js'
-import { AwaitingUserError } from '../src/mcp/errors.js'
+import { AwaitingUserError, MismatchError } from '../src/mcp/errors.js'
 
 const URL = 'http://example.test/'
 
@@ -60,11 +60,18 @@ function open(url: string): Promise<WebSocket> {
   })
 }
 
-async function setup(): Promise<{ hub: Hub; driver: ExtensionDriver }> {
+async function setup(
+  options: { attachUrl?: string; announce?: boolean; connect?: boolean } = {},
+): Promise<{ hub: Hub; driver: ExtensionDriver }> {
   const hub = await Hub.start(0)
   hubs.push(hub)
 
+  if (options.connect === false) {
+    return { hub, driver: new ExtensionDriver(hub) }
+  }
+
   const socket = await open(`ws://127.0.0.1:${hub.port}`)
+  const page = { tabId: 11, url: options.attachUrl ?? URL, title: 'Test' }
 
   socket.on('message', (data) => {
     const message = JSON.parse(data.toString()) as {
@@ -75,16 +82,30 @@ async function setup(): Promise<{ hub: Hub; driver: ExtensionDriver }> {
 
     if (message.type !== 'request') return
 
+    if (message.action === 'attach') {
+      socket.send(JSON.stringify({ type: 'response', id: message.id, ok: true, result: page }))
+      socket.send(JSON.stringify({ type: 'hello', ...page, version: '0.1.0' }))
+      return
+    }
+
     const result =
-      message.action === 'graph' ? graph : message.action === 'measure' ? measured : { data: png }
+      message.action === 'graph'
+        ? graph
+        : message.action === 'measure'
+          ? measured
+          : message.action === 'overlay'
+            ? { ok: true }
+            : { data: png }
 
     socket.send(JSON.stringify({ type: 'response', id: message.id, ok: true, result }))
   })
 
-  socket.send(
-    JSON.stringify({ type: 'hello', tabId: 11, url: URL, title: 'Test', version: '0.1.0' }),
-  )
-  await hub.waitForPage(URL, 1000)
+  if (options.announce !== false) {
+    socket.send(
+      JSON.stringify({ type: 'hello', tabId: 11, url: URL, title: 'Test', version: '0.1.0' }),
+    )
+    await hub.waitForPage(URL, 1000)
+  }
 
   return { hub, driver: new ExtensionDriver(hub) }
 }
@@ -104,18 +125,34 @@ describe('ExtensionDriver', () => {
     expect(await driver.issues(['contrast'])).toEqual([])
   })
 
-  it('measures and decodes screenshots', async () => {
+  it('measures, decodes screenshots, and controls the overlay', async () => {
     const { driver } = await setup()
     await driver.open(URL)
 
     expect(await driver.measure('.card')).toEqual(measured)
     expect((await driver.screenshot()).subarray(0, 4).toString('hex')).toBe('89504e47')
     expect((await driver.annotate()).subarray(0, 4).toString('hex')).toBe('89504e47')
+
+    await expect(driver.overlay({ enabled: true, layers: ['grid'] })).resolves.toBeUndefined()
+    await expect(driver.overlay({ enabled: false })).resolves.toBeUndefined()
   })
 
-  it('asks the human when the page is not connected', async () => {
-    const { driver } = await setup()
+  it('attaches to the active tab without a click', async () => {
+    const { driver } = await setup({ announce: false })
+    await driver.open(URL)
 
-    await expect(driver.open('http://missing.test/')).rejects.toBeInstanceOf(AwaitingUserError)
+    expect(await driver.graph()).toEqual(graph)
+  })
+
+  it('reports a mismatch when the active tab is another page', async () => {
+    const { driver } = await setup({ announce: false, attachUrl: 'http://other.test/' })
+
+    await expect(driver.open(URL)).rejects.toBeInstanceOf(MismatchError)
+  })
+
+  it('asks the human when no extension is connected', async () => {
+    const { driver } = await setup({ connect: false })
+
+    await expect(driver.open(URL)).rejects.toBeInstanceOf(AwaitingUserError)
   })
 })

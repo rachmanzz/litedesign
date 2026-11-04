@@ -1,6 +1,6 @@
 import { readConfig } from '../../config.js'
 import type { Viewport } from '../../drivers/types.js'
-import { AwaitingUserError } from '../errors.js'
+import { AwaitingUserError, MismatchError } from '../errors.js'
 import { formatTree } from '../format.js'
 import { handoffMessage } from '../handoff.js'
 import { imageResult, type ToolResult, textResult } from '../result.js'
@@ -26,6 +26,16 @@ export async function inspectTool(input: InspectInput): Promise<ToolResult> {
         url: input.url,
         next: 'await_page',
         message: handoffMessage(input.url),
+      })
+    }
+
+    if (error instanceof MismatchError) {
+      return textResult({
+        status: 'mismatch',
+        expected: error.expected,
+        actual: error.actual,
+        next: 'await_page',
+        message: error.message,
       })
     }
 

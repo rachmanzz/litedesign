@@ -1,4 +1,4 @@
-import { RULE_IDS } from '@litedesign/core'
+import { LAYERS, RULE_IDS } from '@litedesign/core'
 import { readConfig } from '../config.js'
 import { detectPlaywright } from '../drivers/index.js'
 import { getHub, getHubError, Hub, setHub, setHubError } from '../hub.js'
@@ -10,6 +10,7 @@ import { awaitPageTool } from './tools/await-page.js'
 import { findIssuesTool } from './tools/find-issues.js'
 import { inspectTool } from './tools/inspect.js'
 import { measureTool } from './tools/measure.js'
+import { overlayTool } from './tools/overlay.js'
 import { screenshotTool } from './tools/screenshot.js'
 import { screenshotAnnotatedTool } from './tools/screenshot-annotated.js'
 
@@ -83,7 +84,7 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Inspect page',
       description:
-        'Open a page and return a tree summary plus a screenshot. Call this before measure, find_issues, screenshot, or screenshot_annotated. Returns status "awaiting_user" when the extension driver needs the human to open the page.',
+        'Open a page and return a tree summary plus a screenshot. Call this before measure, find_issues, overlay, screenshot, or screenshot_annotated. With the extension driver this attaches to the active tab by itself; returns "awaiting_user" when no extension is connected and "mismatch" when the active tab is a different page.',
       inputSchema: {
         url: z.string().url(),
         viewport,
@@ -149,6 +150,23 @@ export async function runMcpServer(): Promise<void> {
       },
     },
     async (input) => guard(() => findIssuesTool(input)),
+  )
+
+  server.registerTool(
+    'overlay',
+    {
+      title: 'Overlay',
+      description:
+        'Show or hide the measurement overlay in the page the human is looking at: grid, guides, gap labels, and issue boxes. Use it to let the human see spacing without clicking anything. Call inspect first.',
+      inputSchema: {
+        enabled: z.boolean().optional().describe('false hides the overlay (default true)'),
+        layers: z
+          .array(z.string())
+          .optional()
+          .describe(`Layers to draw. Default: all. Valid: ${LAYERS.join(', ')}`),
+      },
+    },
+    async (input) => guard(() => overlayTool(input)),
   )
 
   server.registerTool(

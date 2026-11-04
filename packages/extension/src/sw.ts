@@ -1,4 +1,4 @@
-import { backoffDelay, MAX_ATTEMPTS, shouldRetry } from './backoff.js'
+import { backoffDelay, OFFLINE_AFTER } from './backoff.js'
 
 /**
  * The service worker owns the WebSocket to the MCP hub, forwards measurement
@@ -8,10 +8,10 @@ import { backoffDelay, MAX_ATTEMPTS, shouldRetry } from './backoff.js'
  * keeps it alive; if Chrome still stops it, module init reconnects and restores
  * the last page from `chrome.storage.session`.
  *
- * Reconnection is bounded. The hub only exists while `litedesign mcp` runs, so
- * a missing server is the normal state, not an error: after `MAX_ATTEMPTS` the
- * worker stops trying and the action title says how to start it. Clicking the
- * icon retries, because that is the user saying the server is up now.
+ * The socket is also the control channel. The MCP server asks the worker to
+ * attach to whatever tab the human is looking at, so nobody has to click the
+ * icon before an agent can measure. That is why the worker keeps retrying: a
+ * stopped socket would make the extension unreachable until a click.
  */
 
 const DEFAULT_PORT = 8787
@@ -41,10 +41,20 @@ async function start(): Promise<void> {
   port = await readPort()
   current = await readPage()
 
-  // Without a page there is nothing to announce. Connecting anyway would only
-  // log a network error per attempt in the worker console.
-  if (current !== undefined) connect()
+  connect()
 }
+
+/**
+ * The human is looking at a tab, which is the moment the hub may want to
+ * attach. Retrying here means the first `inspect` after starting the server
+ * does not wait for the backoff timer.
+ */
+function wake(): void {
+  retry()
+}
+
+chrome.tabs.onActivated.addListener(wake)
+chrome.windows.onFocusChanged.addListener(wake)
 
 chrome.action.onClicked.addListener(async (tab) => {
   await ready
@@ -79,8 +89,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   void savePage(undefined)
   send({ type: 'bye' })
 
-  // Nothing left to announce, so stop the keep-alive traffic too.
-  socket?.close()
+  // Keep the socket: the hub may still ask this worker to attach to another tab.
 })
 
 function connect(): void {
@@ -108,14 +117,12 @@ function connect(): void {
     if (socket === next) socket = undefined
 
     stopPing()
-
-    // No page means nothing to announce. Reconnecting would only retry blindly.
-    if (current === undefined) return
-
     failures += 1
 
-    if (shouldRetry(failures)) scheduleReconnect()
-    else void setOffline()
+    // Only complain when there is a page waiting on the bridge.
+    if (current !== undefined && failures >= OFFLINE_AFTER) void setOffline()
+
+    scheduleReconnect()
   })
 
   next.addEventListener('error', () => {
@@ -146,8 +153,8 @@ function scheduleReconnect(): void {
 }
 
 /**
- * Says the bridge is down once, then stops. The browser logs the failed
- * WebSocket itself; repeating it every 30 seconds only hides the real cause.
+ * Says the bridge is down once, then keeps retrying quietly. The browser logs
+ * each failed attempt itself, so one clear line beats one per attempt.
  */
 async function setOffline(): Promise<void> {
   const first = !offline
@@ -155,8 +162,8 @@ async function setOffline(): Promise<void> {
 
   if (first) {
     console.info(
-      `[litedesign] no MCP server on ws://127.0.0.1:${port} after ${MAX_ATTEMPTS} attempts. ` +
-        'Start "litedesign mcp", then click the icon again.',
+      `[litedesign] no MCP server on ws://127.0.0.1:${port} after ${OFFLINE_AFTER} attempts. ` +
+        'Start "litedesign mcp"; the bridge reconnects by itself.',
     )
   }
 
@@ -244,8 +251,11 @@ async function handleRequest(id: string, action: string, payload: unknown): Prom
 
 async function route(action: string, payload: unknown): Promise<unknown> {
   switch (action) {
+    case 'attach':
+      return attach()
     case 'graph':
     case 'measure':
+    case 'overlay':
       return toTab(action, payload)
     case 'screenshot':
       return capture('screenshot_prepare', payload)
@@ -254,6 +264,30 @@ async function route(action: string, payload: unknown): Promise<unknown> {
     default:
       throw new Error(`unknown action: ${action}`)
   }
+}
+
+/**
+ * Binds to the tab the human is looking at. This is what removes the click:
+ * the server asks for a page, the worker picks the active one and announces it.
+ */
+async function attach(): Promise<Page> {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+
+  if (tab?.id === undefined || !isSupported(tab.url)) {
+    throw new Error(
+      'the active tab is not an http(s) page. Switch to the page you want to measure.',
+    )
+  }
+
+  const page: Page = { tabId: tab.id, url: tab.url ?? '', title: tab.title ?? '' }
+
+  await ensureContent(page.tabId)
+
+  current = page
+  await savePage(page)
+  send({ type: 'hello', ...page, version: chrome.runtime.getManifest().version })
+
+  return page
 }
 
 async function capture(
@@ -368,7 +402,7 @@ function toBase64(buffer: ArrayBuffer): string {
 
 function requirePage(): Page {
   if (current === undefined) {
-    throw new Error('no page is attached. Open the page and click the litedesign icon.')
+    throw new Error('no page is attached. Call inspect first so the extension can attach to it.')
   }
 
   return current
