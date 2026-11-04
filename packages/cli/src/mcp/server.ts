@@ -15,6 +15,7 @@ import { measureTool } from './tools/measure.js'
 import { overlayTool } from './tools/overlay.js'
 import { screenshotTool } from './tools/screenshot.js'
 import { screenshotAnnotatedTool } from './tools/screenshot-annotated.js'
+import { WORKFLOW_TEXT, WORKFLOW_URI } from './workflow.js'
 
 async function guard(run: () => Promise<ToolResult>): Promise<ToolResult> {
   try {
@@ -46,6 +47,20 @@ export async function runMcpServer(): Promise<void> {
   }
 
   const server = new McpServer({ name: 'litedesign', version: VERSION })
+
+  server.registerResource(
+    'workflow',
+    WORKFLOW_URI,
+    {
+      title: 'Workflow',
+      description:
+        "How the agent should work with this server: inspect first, resolve the human's names through labels, spotlight edits with focus.",
+      mimeType: 'text/markdown',
+    },
+    async () => ({
+      contents: [{ uri: WORKFLOW_URI, text: WORKFLOW_TEXT, mimeType: 'text/markdown' }],
+    }),
+  )
 
   const viewport = z
     .object({
@@ -86,7 +101,7 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Inspect page',
       description:
-        'Open a page and return a tree summary. Call this before measure, find_issues, overlay, screenshot, or screenshot_annotated. The summary includes labels: the count and unique names the human pinned onto parts of the page — when the human refers to a part by name, get its selector from the labels tool. No image by default: the numbers the agent needs come from the DOM, so set screenshot to true only when you really need to see the page. With the extension driver this attaches to the active tab by itself; returns "awaiting_user" when no extension is connected and "mismatch" when the active tab is a different page.',
+        'Open a page and return a tree summary. Call this before measure, find_issues, overlay, screenshot, or screenshot_annotated. The summary includes labels: the count and unique names the human pinned onto parts of the page — when the human refers to a part by name, get its selector from the labels tool. The full workflow is available as the resource skill://litedesign/workflow. No image by default: the numbers the agent needs come from the DOM, so set screenshot to true only when you really need to see the page. With the extension driver this attaches to the active tab by itself; returns "awaiting_user" when no extension is connected and "mismatch" when the active tab is a different page.',
       inputSchema: {
         url: z.string().url(),
         viewport,

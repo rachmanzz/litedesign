@@ -11,6 +11,10 @@ exported, imported, or redrawn in a canvas. The overlay is injected into the
 page you already have open, lives in a closed shadow root, and never touches
 layout.
 
+The server also serves its workflow as an MCP resource,
+`skill://litedesign/workflow` — an agent that supports resources can read
+it and learn the flow without a file in the repository.
+
 ## What you get
 
 - **Overlay layers** — `grid` (8px, two axes), `guide` (alignment edges and
@@ -100,8 +104,9 @@ While the overlay is on, the toolbar in the page gives you the controls:
 | Grid icons    | vertical, horizontal, or both directions; `-`/`+` sets the spacing |
 
 Clicking `label` and then an element opens a small popup next to that element:
-type a name and press Enter to pin it, press Enter again on a labeled element
-to rename it, click the × in the popup to remove it.
+type a name and press Enter to pin it. With label mode on, clicking a pinned
+badge — or the labeled element itself — opens the same popup prefilled:
+press Enter to rename, click the × in the popup to remove it, Escape cancels.
 
 The bridge is a standalone daemon, not a child of the agent session:
 

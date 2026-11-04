@@ -74,6 +74,11 @@ scrolled viewport.
 toolbar. When the human refers to a part by name, look it up there instead of
 guessing a selector. Labels are read-only for the agent.
 
+The server also serves its workflow as the MCP resource
+`skill://litedesign/workflow` — an agent that supports resources can read the
+flow (inspect first, resolve names through labels, spotlight edits with focus)
+without a file in the repository.
+
 ## Drivers
 
 The server prefers Playwright when `playwright-core` is installed. It launches
