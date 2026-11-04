@@ -1,0 +1,16 @@
+# --- dependensi & build ---
+node_modules/
+dist/
+*.tsbuildinfo
+
+# --- semua path berawalan titik ---
+.*
+# kecuali CI/CD dan file aturan ignore itu sendiri
+!.github/
+!.gitignore
+
+# --- aturan agent lokal ---
+AGENTS.md
+
+# --- knl-view (machine-local) ---
+knl-config.json

@@ -1,0 +1,36 @@
+{
+  "name": "@rahmantech/litedesign",
+  "version": "0.1.0",
+  "description": "Grid, gap, dan alignment ala Figma di halaman web asli, plus jembatan MCP untuk agent.",
+  "type": "module",
+  "bin": {
+    "litedesign": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "design",
+    "chrome-extension",
+    "mcp",
+    "spacing",
+    "alignment"
+  ]
+}
