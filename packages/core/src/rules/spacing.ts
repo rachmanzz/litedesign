@@ -1,12 +1,12 @@
 import { SPACING_SCALE } from '../constants.js'
 import type { Issue } from '../types.js'
-import { issue, type Rule } from './rule.js'
+import { defineRule, issue } from './rule.js'
 
 /**
  * Sibling gaps should sit on the spacing scale. Visual gaps are skipped: they
  * are an observation about two unrelated boxes, not a value anyone authored.
  */
-export const spacingScale: Rule = (graph) => {
+export const spacingScale = defineRule('spacing-scale', (graph) => {
   const issues: Issue[] = []
 
   for (const gap of graph.gaps) {
@@ -29,4 +29,4 @@ export const spacingScale: Rule = (graph) => {
   }
 
   return issues
-}
+})

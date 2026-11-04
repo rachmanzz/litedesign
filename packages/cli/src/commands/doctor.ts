@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
-import { CONFIG, DEFAULT_PORT, EXT_DIR } from '../paths.js'
+import { readConfig } from '../config.js'
+import { CONFIG, EXT_DIR } from '../paths.js'
 import { VERSION } from '../version.js'
 
 type Status = 'ok' | 'warn' | 'fail'
@@ -35,13 +36,9 @@ export async function doctor(): Promise<void> {
     line('fail', 'extension', `missing at ${EXT_DIR} — run: litedesign setup`)
   }
 
-  let port = DEFAULT_PORT
-  let mode = 'auto'
+  const { port, mode } = await readConfig()
 
   if (existsSync(CONFIG)) {
-    const config = JSON.parse(await readFile(CONFIG, 'utf8')) as { port?: number; mode?: string }
-    port = config.port ?? port
-    mode = config.mode ?? mode
     line('ok', 'config', `port ${port}, mode ${mode}`)
   } else {
     line('warn', 'config', 'missing — run: litedesign setup')

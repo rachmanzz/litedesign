@@ -9,6 +9,9 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./dist/core.js"
+    },
+    "./types": {
+      "types": "./src/types.ts"
     }
   },
   "scripts": {

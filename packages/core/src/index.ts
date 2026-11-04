@@ -6,7 +6,7 @@ export * from './geometry.js'
 export { buildGraph } from './graph.js'
 export { LAYERS, type LayerName } from './render/layers.js'
 export { type OverlayHandle, type OverlayOptions, render } from './render/overlay.js'
-export { defaultRules, findIssues, type Rule } from './rules/index.js'
+export { defaultRules, findIssues, RULE_IDS, type Rule } from './rules/index.js'
 export * from './types.js'
 export { pathOf } from './walk.js'
 

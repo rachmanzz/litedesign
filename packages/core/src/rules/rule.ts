@@ -1,7 +1,16 @@
 import type { Graph, Issue, Severity } from '../types.js'
 
-/** A rule reads a graph and returns issues. No DOM, no async, no I/O. */
-export type Rule = (graph: Graph) => Issue[]
+/**
+ * A rule reads a graph and returns issues. No DOM, no async, no I/O.
+ *
+ * The `id` lives on the function so the MCP bridge can list and validate rule
+ * names without keeping a second hand-written list in sync.
+ */
+export type Rule = ((graph: Graph) => Issue[]) & { id: string }
+
+export function defineRule(id: string, run: (graph: Graph) => Issue[]): Rule {
+  return Object.assign(run, { id })
+}
 
 type IssueInput = {
   rule: string

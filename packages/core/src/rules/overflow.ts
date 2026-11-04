@@ -1,5 +1,5 @@
 import type { Issue } from '../types.js'
-import { issue, type Rule } from './rule.js'
+import { defineRule, issue } from './rule.js'
 
 /** Sub-pixel scroll noise is not an overflow. */
 const SLACK = 1
@@ -9,7 +9,7 @@ const SLACK = 1
  * clipped overflow both count: the first is a layout bug, the second is content
  * the user cannot reach.
  */
-export const overflowClipped: Rule = (graph) => {
+export const overflowClipped = defineRule('overflow', (graph) => {
   const issues: Issue[] = []
 
   for (const node of graph.nodes) {
@@ -46,4 +46,4 @@ export const overflowClipped: Rule = (graph) => {
   }
 
   return issues
-}
+})

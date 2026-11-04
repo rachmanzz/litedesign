@@ -39,13 +39,29 @@ litedesign mcp                # MCP server (stdio)
 }
 ```
 
-## Without Playwright
+## Tools
 
-The server runs with two drivers. When `playwright-core` is not installed, the
-agent asks you to open the page and activate the extension. That is not an
-error — it is the normal path.
+| Tool                   | What it returns                                           |
+| ---------------------- | --------------------------------------------------------- |
+| `capabilities`         | version, drivers, mode, valid rule names                  |
+| `inspect`              | tree summary + screenshot; opens the page                 |
+| `measure`              | box model, computed styles, gaps for one selector         |
+| `find_issues`          | rule violations with selector, actual, expected, severity |
+| `screenshot`           | PNG of the viewport or one element                        |
+| `screenshot_annotated` | PNG with grid, guides, gaps, and issue labels             |
+
+Call `inspect` first. It opens the page and keeps it alive for the other tools.
+
+## Drivers
+
+The server prefers Playwright when `playwright-core` is installed. It launches
+the Chrome you already use, so no browser download is required.
+
+Without Playwright, `inspect` returns `awaiting_user` with copy-pasteable
+instructions. The extension bridge (`await_page`) is the next milestone.
 
 ## Status
 
-v0.1.0 — scaffold. The measurement core is still node + rect; gaps, alignment,
-and the rule engine arrive in M1.
+M3a — the Playwright path is complete: inspect, measure, find issues, plain
+screenshots, and annotated screenshots. The WebSocket hub and the extension
+driver follow in M3b.

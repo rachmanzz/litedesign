@@ -14,6 +14,9 @@ export const defaultRules: Rule[] = [
   contrastMinimum,
 ]
 
+/** Stable names accepted by `find_issues` and `screenshot_annotated`. */
+export const RULE_IDS: string[] = defaultRules.map((rule) => rule.id)
+
 export function findIssues(graph: Graph, rules: Rule[] = defaultRules): Issue[] {
   return rules.flatMap((rule) => rule(graph))
 }

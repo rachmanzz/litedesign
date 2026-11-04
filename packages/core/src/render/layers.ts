@@ -157,18 +157,40 @@ export function drawIssues(layer: HTMLElement, graph: Graph): void {
   const byId = new Map(graph.nodes.map((node) => [node.id, node]))
   const scrollX = window.scrollX
   const scrollY = window.scrollY
+  // On a dense page the labels overlap into noise and double the element count.
+  const showLabels = graph.issues.length <= LABEL_LIMIT
 
   for (const item of graph.issues.slice(0, MAX_MARKERS)) {
     const node = byId.get(item.selector)
     if (node === undefined) continue
 
     const color = SEVERITY_COLOR[item.severity]
+    const left = node.rect.x - scrollX
+    const top = node.rect.y - scrollY
 
     box(
       layer,
-      `left:${node.rect.x - scrollX}px;top:${node.rect.y - scrollY}px;width:${node.rect.w}px;height:${node.rect.h}px;border:1px solid ${color};border-radius:2px`,
+      `left:${left}px;top:${top}px;width:${node.rect.w}px;height:${node.rect.h}px;border:1px solid ${color};border-radius:2px`,
     )
+
+    if (!showLabels || !onScreen(left, top, node.rect.w, node.rect.h)) continue
+
+    tag(layer, `${item.severity} · ${item.actual} → ${item.expected}`, left + 2, top + 2, color)
   }
+}
+
+/** Viewport-space check: labels for boxes scrolled out of view are wasted DOM. */
+function onScreen(x: number, y: number, w: number, h: number): boolean {
+  return x + w > 0 && y + h > 0 && x < window.innerWidth && y < window.innerHeight
+}
+
+function tag(layer: HTMLElement, text: string, x: number, y: number, color: string): void {
+  const element = box(
+    layer,
+    `left:${x}px;top:${y}px;padding:1px 4px;border-radius:3px;background:${color};color:#fff;font:10px/1.3 ui-monospace,monospace;white-space:nowrap`,
+  )
+
+  element.textContent = text
 }
 
 const HOVER_BORDER = 'rgba(59, 130, 246, 0.9)'

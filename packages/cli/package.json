@@ -20,6 +20,9 @@
     "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "^4.6.7"
   },
+  "devDependencies": {
+    "@litedesign/core": "workspace:*"
+  },
   "publishConfig": {
     "access": "public"
   },

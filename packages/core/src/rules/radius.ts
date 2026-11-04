@@ -1,5 +1,5 @@
 import type { GraphNode, Issue } from '../types.js'
-import { issue, type Rule } from './rule.js'
+import { defineRule, issue } from './rule.js'
 
 /** Below this sample size the majority is not a signal. */
 const MIN_SAMPLES = 4
@@ -9,7 +9,7 @@ const MIN_SAMPLES = 4
  * other value is reported once per node. Pills and circles are skipped: their
  * radius is derived from size, so it is not part of the same scale.
  */
-export const radiusConsistency: Rule = (graph) => {
+export const radiusConsistency = defineRule('radius-consistency', (graph) => {
   const groups = new Map<string, GraphNode[]>()
 
   for (const node of graph.nodes) {
@@ -53,7 +53,7 @@ export const radiusConsistency: Rule = (graph) => {
   }
 
   return issues
-}
+})
 
 function normalizeRadius(value: string): string | null {
   const text = value.trim()

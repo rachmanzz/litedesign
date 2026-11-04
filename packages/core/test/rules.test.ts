@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { alignmentNearMiss } from '../src/rules/alignment.js'
 import { contrastMinimum } from '../src/rules/contrast.js'
+import { RULE_IDS } from '../src/rules/index.js'
 import { overflowClipped } from '../src/rules/overflow.js'
 import { radiusConsistency } from '../src/rules/radius.js'
 import { spacingScale } from '../src/rules/spacing.js'
@@ -193,5 +194,17 @@ describe('contrastMinimum', () => {
     ]
 
     expect(contrastMinimum(graph(nodes))).toEqual([])
+  })
+})
+
+describe('RULE_IDS', () => {
+  it('publishes the stable rule names in execution order', () => {
+    expect(RULE_IDS).toEqual([
+      'spacing-scale',
+      'alignment-near-miss',
+      'radius-consistency',
+      'overflow',
+      'contrast',
+    ])
   })
 })

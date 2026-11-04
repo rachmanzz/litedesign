@@ -1,6 +1,6 @@
 import { EDGES } from '../align.js'
 import type { Issue } from '../types.js'
-import { issue, type Rule } from './rule.js'
+import { defineRule, issue } from './rule.js'
 
 /** Anything within this is already a guide, not a problem. */
 const TOLERANCE = 2
@@ -15,7 +15,7 @@ const WINDOW = 4
  * The root node is skipped: the page container has no sibling to align with,
  * and its center is just half the document.
  */
-export const alignmentNearMiss: Rule = (graph) => {
+export const alignmentNearMiss = defineRule('alignment-near-miss', (graph) => {
   const issues: Issue[] = []
 
   for (const spec of EDGES) {
@@ -68,4 +68,4 @@ export const alignmentNearMiss: Rule = (graph) => {
   }
 
   return issues
-}
+})
