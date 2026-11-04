@@ -103,6 +103,7 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
   let focusId: string | null = null
   let labels: Label[] = []
   let labelMode = false
+  let marksInteractive = false
   let toolbar: Toolbar
 
   const teardown = (): void => {
@@ -192,7 +193,33 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
   }
 
   const applyMarks = (): void => {
-    handle?.setMarks(labels.map((label) => ({ selector: label.selector, text: label.text })))
+    handle?.setMarks(
+      labels.map((label) => ({ selector: label.selector, text: label.text })),
+      marksInteractive,
+    )
+  }
+
+  /** Rename or remove one label; the popup anchors to the badge or element. */
+  const editLabel = (existing: Label, rect: DOMRect): void => {
+    toolbar.askLabel(
+      rect,
+      existing.text,
+      (text) => {
+        const trimmed = text.trim()
+        if (trimmed === '' || trimmed === existing.text) return
+
+        void renameLabel(existing.id, trimmed).then((next) => {
+          labels = next
+          applyMarks()
+        })
+      },
+      () => {
+        void removeLabel(existing.id).then((next) => {
+          labels = next
+          applyMarks()
+        })
+      },
+    )
   }
 
   /**
@@ -214,25 +241,7 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
     if (existing !== undefined) {
       // A labeled element opens the popup in rename mode: Enter renames, ×
       // removes — instant deletion on a stray click is too easy to trigger.
-      toolbar.askLabel(
-        target.getBoundingClientRect(),
-        existing.text,
-        (text) => {
-          const trimmed = text.trim()
-          if (trimmed === '' || trimmed === existing.text) return
-
-          void renameLabel(existing.id, trimmed).then((next) => {
-            labels = next
-            applyMarks()
-          })
-        },
-        () => {
-          void removeLabel(existing.id).then((next) => {
-            labels = next
-            applyMarks()
-          })
-        },
-      )
+      editLabel(existing, target.getBoundingClientRect())
       return
     }
 
@@ -256,6 +265,11 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
     } else {
       document.removeEventListener('click', onLabelClick, true)
     }
+
+    // Badges answer clicks only while marking: outside the mode they stay
+    // click-transparent so they never steal a click meant for the page.
+    marksInteractive = labelMode
+    applyMarks()
   }
 
   toolbar = createToolbar({
@@ -273,7 +287,15 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
 
   toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
 
-  handle = core.render(graph, { layers, toolbar: toolbar.element, grid })
+  handle = core.render(graph, {
+    layers,
+    toolbar: toolbar.element,
+    grid,
+    onMarkClick: (mark, anchor) => {
+      const existing = labels.find((label) => label.selector === mark.selector)
+      if (existing !== undefined) editLabel(existing, anchor)
+    },
+  })
   observer = observeChanges({ root, onChange: refresh })
 
   // Labels survive a reload in storage; the badges come back with the overlay.

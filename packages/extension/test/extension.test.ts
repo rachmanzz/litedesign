@@ -476,6 +476,72 @@ suite('extension lifecycle', () => {
     expect(errors).toEqual([])
     await page.close()
   })
+
+  it('opens the rename popup from a badge click and removes the label', async () => {
+    const { page, errors } = await open()
+    await mount(page)
+
+    const client = await shadowClient(page)
+
+    await send(page, 'overlay', { enabled: false })
+    const selector = await page.evaluate(() => {
+      const scope = globalThis as unknown as {
+        __litedesign: { buildGraph(root: Element): { nodes: { tag: string; selector: string }[] } }
+        __litedesign_storage__: Record<string, unknown>
+      }
+      const node = scope.__litedesign.buildGraph(document.body).nodes.find((n) => n.tag === 'div')
+      if (node === undefined) throw new Error('no div in the graph')
+
+      scope.__litedesign_storage__['litedesign-labels'] = {
+        [`${location.origin}${location.pathname}`]: [
+          { id: 'seed-1', text: 'login', selector: node.selector },
+        ],
+      }
+      return node.selector
+    })
+
+    await send(page, 'overlay', { enabled: true })
+    await page.waitForFunction(() => window.__litedesign_state__ === 'active')
+    await page.waitForTimeout(100)
+
+    // Label mode on: the badges become clickable overlay chrome.
+    await click(client, await findButton(client, 'data-action', 'label'))
+    await page.waitForTimeout(50)
+
+    // The badge floats above the element's top edge; click it there.
+    const point = await page.evaluate((sel) => {
+      const el = document.querySelector(sel)
+      if (el === null) throw new Error('seeded element not found')
+      const rect = el.getBoundingClientRect()
+      return { x: rect.left + 6, y: rect.top - 6 }
+    }, selector)
+    await page.mouse.click(point.x, point.y)
+    await page.waitForTimeout(50)
+
+    // Rename mode: the input comes prefilled with the pinned name.
+    const input = (await snapshot(client)).find((node) => node.nodeName === 'INPUT')
+    if (input === undefined) throw new Error('popup input not found')
+    const resolved = await client.send('DOM.resolveNode', { nodeId: input.nodeId })
+    const value = await client.send('Runtime.callFunctionOn', {
+      objectId: resolved.object.objectId,
+      functionDeclaration: 'function () { return this.value }',
+      returnByValue: true,
+    })
+    expect(value.result.value).toBe('login')
+
+    // × in the popup removes the label the agent reads through the bridge.
+    const cross = (await snapshot(client)).find(
+      (node) => node.nodeName === 'BUTTON' && attribute(node, 'title') === 'Remove this label',
+    )
+    if (cross === undefined) throw new Error('remove button not found')
+    await click(client, cross)
+    await page.waitForTimeout(50)
+
+    expect(await send(page, 'labels')).toEqual({ ok: true, result: { labels: [] } })
+
+    expect(errors).toEqual([])
+    await page.close()
+  })
 })
 
 function playwrightChromium(): string | undefined {

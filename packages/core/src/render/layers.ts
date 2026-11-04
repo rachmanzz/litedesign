@@ -341,14 +341,21 @@ export type MarkInput = { selector: string; text: string }
  * Badges the human pinned onto parts of the page. Stale selectors are skipped
  * — an empty spot is more honest than a badge floating on the wrong element;
  * the label stays in storage and reappears when the part comes back.
+ *
+ * Returns which badge belongs to which mark so the overlay can answer a click
+ * on the badge itself. Badges take clicks only while `interactive` (label
+ * mode); outside it they stay click-transparent so they never steal a click
+ * meant for the page underneath.
  */
 export function drawMarks(
   layer: HTMLElement,
   marks: MarkInput[],
   bySelector: Map<string, GraphNode>,
-): void {
+  interactive = false,
+): Map<HTMLDivElement, MarkInput> {
   layer.replaceChildren()
-  if (marks.length === 0) return
+  const badges = new Map<HTMLDivElement, MarkInput>()
+  if (marks.length === 0) return badges
 
   const scrollX = window.scrollX
   const scrollY = window.scrollY
@@ -361,10 +368,14 @@ export function drawMarks(
       layer,
       `left:${node.rect.x - scrollX}px;top:${node.rect.y - scrollY}px;` +
         `transform:translateY(-100%);padding:2px 6px;border-radius:4px;` +
-        `background:${MARK_COLOR};color:#fff;font:10px/1.4 ui-monospace,monospace;white-space:nowrap`,
+        `background:${MARK_COLOR};color:#fff;font:10px/1.4 ui-monospace,monospace;white-space:nowrap` +
+        (interactive ? ';pointer-events:auto;cursor:pointer' : ''),
     )
     badge.textContent = mark.text
+    badges.set(badge, mark)
   }
+
+  return badges
 }
 
 export function drawRadius(layer: HTMLElement, node: GraphNode | null): void {

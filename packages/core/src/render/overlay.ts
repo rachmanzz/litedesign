@@ -27,6 +27,11 @@ export type OverlayOptions = {
   toolbar?: HTMLElement
   /** Badges the human pinned onto parts of the page; drawn above the dim. */
   marks?: MarkInput[]
+  /**
+   * Called when the human clicks a pinned badge while badges are interactive.
+   * Core reports which mark and where; what happens next is the caller's call.
+   */
+  onMarkClick?: (mark: MarkInput, anchor: DOMRect) => void
   /** How the grid layer draws itself. Default: 8px, both axes. */
   grid?: GridConfig
 }
@@ -37,8 +42,9 @@ export type OverlayHandle = {
   setLayers(names: LayerName[]): void
   /** Spotlight one node (structural id) or clear the spotlight with null. */
   setFocus(id: string | null): void
-  /** Replaces the pinned badges without remounting. */
-  setMarks(marks: MarkInput[]): void
+  /** Replaces the pinned badges without remounting; badges take clicks only
+   *  while `interactive` (label mode). */
+  setMarks(marks: MarkInput[], interactive?: boolean): void
   /** Replaces the grid configuration without remounting. */
   setGrid(grid: GridConfig): void
   destroy(): void
@@ -68,6 +74,23 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
   const radiusLayer = createSubLayer('radius', layers.hover)
   const marksLayer = createSubLayer('marks', layers.hover)
 
+  // A badge click is overlay chrome: core resolves which mark was clicked and
+  // keeps the event off the page; the caller decides what happens next.
+  if (options.onMarkClick !== undefined) {
+    const onMarkClick = options.onMarkClick
+    marksLayer.addEventListener('click', (event) => {
+      if (!marksInteractive) return
+      const badge = event.target
+      if (!(badge instanceof HTMLDivElement)) return
+      const mark = badgeMarks.get(badge)
+      if (mark === undefined) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      onMarkClick(mark, badge.getBoundingClientRect())
+    })
+  }
+
   if (options.toolbar !== undefined) shadow.append(options.toolbar)
 
   document.documentElement.append(host)
@@ -80,6 +103,8 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
   let focusId: string | null = null
   let visible = new Set<LayerName>(options.layers ?? LAYERS)
   let marks: MarkInput[] = options.marks ?? []
+  let marksInteractive = false
+  let badgeMarks = new Map<HTMLDivElement, MarkInput>()
   let grid: GridConfig = options.grid ?? { step: GRID_STEP, axis: 'both' }
   let frame = 0
 
@@ -104,7 +129,12 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
     drawDim(layers.dim, dimNode)
     drawFocus(layers.focus, outlineNode)
     drawRadius(radiusLayer, outlineNode)
-    drawMarks(marksLayer, marks, new Map(current.nodes.map((node) => [node.selector, node])))
+    badgeMarks = drawMarks(
+      marksLayer,
+      marks,
+      new Map(current.nodes.map((node) => [node.selector, node])),
+      marksInteractive,
+    )
     drawHover(layers.hover, hovered === null ? null : (byId.get(hovered) ?? null))
   }
 
@@ -175,8 +205,9 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
       focusId = id
       draw()
     },
-    setMarks(next: MarkInput[]): void {
+    setMarks(next: MarkInput[], interactive = false): void {
       marks = next
+      marksInteractive = interactive
       draw()
     },
     setGrid(next: GridConfig): void {
