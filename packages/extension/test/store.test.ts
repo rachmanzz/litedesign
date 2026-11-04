@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defaultLayers, loadLayers, saveLayers } from '../src/store.js'
+import { defaultLayers, loadState, saveState } from '../src/store.js'
 
 type Local = {
   get(key: string): Promise<Record<string, unknown>>
@@ -16,29 +16,34 @@ afterEach(() => {
 })
 
 describe('preferences', () => {
-  it('returns defaults when chrome is absent', async () => {
-    expect(await loadLayers()).toEqual(defaultLayers())
+  it('returns defaults and off when chrome is absent', async () => {
+    expect(await loadState()).toEqual({ enabled: false, layers: defaultLayers() })
   })
 
   it('drops unknown layers and always keeps hover', async () => {
     stubStorage({
-      get: async () => ({ litedesign: { layers: ['grid', 'nope'] } }),
+      get: async () => ({ litedesign: { enabled: true, layers: ['grid', 'nope'] } }),
     })
-    expect(await loadLayers()).toEqual(['grid', 'hover'])
+    expect(await loadState()).toEqual({ enabled: true, layers: ['grid', 'hover'] })
+  })
+
+  it('reads a value written before the enabled flag existed as off', async () => {
+    stubStorage({ get: async () => ({ litedesign: { layers: ['gap'] } }) })
+    expect(await loadState()).toEqual({ enabled: false, layers: ['gap', 'hover'] })
   })
 
   it('falls back to defaults when the stored value is malformed', async () => {
     stubStorage({ get: async () => ({ litedesign: 'nope' }) })
-    expect(await loadLayers()).toEqual(defaultLayers())
+    expect(await loadState()).toEqual({ enabled: false, layers: defaultLayers() })
   })
 
-  it('writes the layer list under one key', async () => {
+  it('writes the whole state under one key', async () => {
     const set = vi.fn(async () => {})
     stubStorage({ set })
 
-    await saveLayers(['grid', 'hover'])
+    await saveState({ enabled: true, layers: ['grid', 'hover'] })
 
-    expect(set).toHaveBeenCalledWith({ litedesign: { layers: ['grid', 'hover'] } })
+    expect(set).toHaveBeenCalledWith({ litedesign: { enabled: true, layers: ['grid', 'hover'] } })
   })
 
   it('keeps working when storage rejects', async () => {
@@ -49,7 +54,7 @@ describe('preferences', () => {
       },
     })
 
-    expect(await loadLayers()).toEqual(defaultLayers())
+    expect(await loadState()).toEqual({ enabled: false, layers: defaultLayers() })
     expect(warn).toHaveBeenCalled()
   })
 })

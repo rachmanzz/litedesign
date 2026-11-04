@@ -108,15 +108,79 @@ suite('extension lifecycle', () => {
     await browser?.close()
   })
 
-  async function open(): Promise<{ page: Page; errors: string[] }> {
+  async function open(
+    seed: Record<string, unknown> = {},
+  ): Promise<{ page: Page; errors: string[] }> {
     if (browser === undefined) throw new Error('browser not started')
 
     const page = await browser.newPage()
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
+
+    // Stands in for the extension APIs the bundle expects: `chrome.storage`
+    // for the preferences, and `chrome.runtime.onMessage` so the bridge
+    // registers its listener and the test can send real messages to it.
+    await page.addInitScript((seed) => {
+      const scope = globalThis as unknown as Record<string, unknown>
+      const storage: Record<string, unknown> = { ...seed }
+      const listeners: Array<(...args: unknown[]) => unknown> = []
+
+      scope.__litedesign_storage__ = storage
+      scope.__litedesign_messages__ = listeners
+      scope.chrome = {
+        storage: {
+          local: {
+            async get(key: string) {
+              return { [key]: storage[key] }
+            },
+            async set(items: Record<string, unknown>) {
+              Object.assign(storage, items)
+            },
+          },
+        },
+        runtime: {
+          onMessage: {
+            addListener(listener: (...args: unknown[]) => unknown) {
+              listeners.push(listener)
+            },
+          },
+        },
+      }
+    }, seed)
+
     await page.goto(`file://${fixture}`)
 
     return { page, errors }
+  }
+
+  async function send(page: Page, action: string, payload?: unknown): Promise<unknown> {
+    return page.evaluate(
+      ({ action, payload }) =>
+        new Promise((resolve) => {
+          const scope = globalThis as unknown as Record<string, unknown>
+          const listeners = scope.__litedesign_messages__ as Array<
+            (message: unknown, sender: unknown, respond: (value: unknown) => void) => unknown
+          >
+
+          for (const listener of listeners) listener({ action, payload }, {}, resolve)
+        }),
+      { action, payload },
+    )
+  }
+
+  async function overlayState(page: Page): Promise<{
+    exists: boolean
+    display: string
+    state: string | null
+  }> {
+    return page.evaluate(() => {
+      const host = document.getElementById('__litedesign_overlay__')
+      return {
+        exists: host !== null,
+        display: host?.style.display ?? '',
+        state: window.__litedesign_state__ ?? null,
+      }
+    })
   }
 
   async function mount(page: Page): Promise<void> {
@@ -208,6 +272,66 @@ suite('extension lifecycle', () => {
     expect(await page.locator('#__litedesign_overlay__').count()).toBe(1)
 
     expect(errors).toEqual([])
+    await page.close()
+  })
+
+  it('hides the user overlay for a capture and restores it unchanged', async () => {
+    const { page, errors } = await open()
+
+    await mount(page)
+    expect(await overlayState(page)).toEqual({ exists: true, display: '', state: 'active' })
+
+    // Turn one layer off so the capture has something to lose.
+    const client = await shadowClient(page)
+    await click(client, await findButton(client, 'data-layer', 'grid'))
+
+    await send(page, 'screenshot_prepare', {})
+    expect(await overlayState(page)).toEqual({ exists: true, display: 'none', state: 'active' })
+
+    await send(page, 'capture_cleanup')
+    expect(await overlayState(page)).toEqual({ exists: true, display: '', state: 'active' })
+
+    const grid = await findButton(client, 'data-layer', 'grid')
+    expect(attribute(grid, 'aria-pressed')).toBe('false')
+    expect(errors).toEqual([])
+
+    await page.close()
+  })
+
+  it('restores the overlay on injection when the stored state says it was on', async () => {
+    const { page, errors } = await open({ litedesign: { enabled: true, layers: ['grid'] } })
+
+    // A reload re-injects the bundle; nothing else runs before it.
+    await page.addScriptTag({ path: coreDist })
+    await page.addScriptTag({ path: contentDist })
+    await page.waitForFunction(() => window.__litedesign_state__ === 'active')
+
+    expect(await overlayState(page)).toEqual({ exists: true, display: '', state: 'active' })
+
+    const client = await shadowClient(page)
+    const grid = await findButton(client, 'data-layer', 'grid')
+    expect(attribute(grid, 'aria-pressed')).toBe('true')
+
+    const stored = await page.evaluate(() => {
+      const scope = globalThis as unknown as Record<string, unknown>
+      return scope.__litedesign_storage__
+    })
+    expect(stored).toEqual({ litedesign: { enabled: true, layers: ['grid', 'hover'] } })
+    expect(errors).toEqual([])
+
+    await page.close()
+  })
+
+  it('stays off on injection when the stored state says it was off', async () => {
+    const { page, errors } = await open({ litedesign: { enabled: false, layers: ['grid'] } })
+
+    await page.addScriptTag({ path: coreDist })
+    await page.addScriptTag({ path: contentDist })
+    await page.waitForTimeout(100)
+
+    expect(await overlayState(page)).toEqual({ exists: false, display: '', state: null })
+    expect(errors).toEqual([])
+
     await page.close()
   })
 })

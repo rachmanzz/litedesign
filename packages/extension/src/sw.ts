@@ -140,6 +140,17 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   // Keep the socket: the hub may still ask this worker to attach to another tab.
 })
 
+/**
+ * A reload drops the content script, and with it the overlay. Re-inject once
+ * the watched tab has finished loading; the content script restores the
+ * overlay from storage, so saving a file during an edit keeps the grid up.
+ */
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.status !== 'complete' || current?.tabId !== tabId) return
+
+  void ensureContent(tabId).catch(() => undefined)
+})
+
 function connect(): void {
   if (socket !== undefined && socket.readyState <= WebSocket.OPEN) return
 

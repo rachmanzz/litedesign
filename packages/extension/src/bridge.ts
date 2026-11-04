@@ -1,4 +1,4 @@
-import { applyOverlay, boot } from './boot.js'
+import { applyOverlay, boot, overlayHost } from './boot.js'
 import type { Core, Graph, LayerName, OverlayHandle } from './types.js'
 
 type Payload = {
@@ -20,12 +20,14 @@ const TEMP_LAYERS: LayerName[] = ['grid', 'guide', 'gap', 'issue']
 const FULL_PAGE =
   'full-page screenshots need the Playwright driver. The extension can only capture the visible viewport.'
 
+type Hidden = { element: HTMLElement; display: string }
+
 /**
- * While a capture is running the user's overlay is suspended. `handle` is the
- * temporary overlay for an annotated capture; `restore` says whether the user
- * overlay has to come back afterwards.
+ * While a capture is running the user's overlay is hidden. `handle` is the
+ * temporary overlay for an annotated capture; `hidden` is the user's overlay
+ * with the display value it had before the capture.
  */
-let suspended: { handle?: OverlayHandle; restore: boolean } | undefined
+let suspended: { handle?: OverlayHandle; hidden?: Hidden } | undefined
 
 /**
  * Installs the content-script side of the bridge. Safe to call on every
@@ -75,7 +77,7 @@ async function respond(core: Core, raw: unknown): Promise<Response> {
     case 'annotate_prepare':
       return { ok: true, result: await prepareAnnotation(core, payload) }
     case 'capture_cleanup':
-      await cleanup(core)
+      await cleanup()
       return { ok: true }
     default:
       throw new Error(`unknown action: ${action || '(none)'}`)
@@ -137,28 +139,42 @@ async function prepareAnnotation(core: Core, payload: Payload): Promise<Prepared
   return { rect, dpr }
 }
 
-async function cleanup(core: Core): Promise<void> {
+async function cleanup(): Promise<void> {
   const current = suspended
   if (current === undefined) return
 
   suspended = undefined
   current.handle?.destroy()
-
-  if (current.restore) await boot(core)
+  showUserOverlay(current.hidden)
 }
 
 /**
- * Removes the user's overlay and remembers whether it has to be restored. A
+ * Hides the user's overlay for the duration of a capture. It used to tear the
+ * overlay down and remount it afterwards from storage, which meant a capture
+ * could bring back a different layer selection than the one on screen. A
  * previous capture's overlay is replaced, not stacked.
  */
 function suspend(handle?: OverlayHandle): void {
   const previous = suspended
   previous?.handle?.destroy()
+  showUserOverlay(previous?.hidden)
 
-  const restore = previous?.restore ?? window.__litedesign_state__ === 'active'
-  if (window.__litedesign_state__ === 'active') window.__litedesign_teardown__?.()
+  suspended =
+    handle === undefined ? { hidden: hideUserOverlay() } : { handle, hidden: hideUserOverlay() }
+}
 
-  suspended = handle === undefined ? { restore } : { restore, handle }
+function hideUserOverlay(): Hidden | undefined {
+  const element = overlayHost()
+  if (element === undefined) return undefined
+
+  const display = element.style.display
+  element.style.display = 'none'
+
+  return { element, display }
+}
+
+function showUserOverlay(hidden: Hidden | undefined): void {
+  if (hidden !== undefined) hidden.element.style.display = hidden.display
 }
 
 async function prepareElement(core: Core, selector: string | undefined): Promise<Rect | undefined> {

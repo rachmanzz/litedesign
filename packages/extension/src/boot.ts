@@ -1,7 +1,18 @@
 import { type Observer, observeChanges } from './observer.js'
-import { loadLayers, saveLayers } from './store.js'
+import { loadState, saveState } from './store.js'
 import { createToolbar, type Toolbar } from './toolbar.js'
 import type { Core, Graph, LayerName, OverlayHandle } from './types.js'
+
+/**
+ * The host of the overlay that is on screen. The bridge hides it during a
+ * capture instead of tearing it down, so the user's layer selection survives
+ * the screenshot.
+ */
+let mountedHost: HTMLElement | undefined
+
+export function overlayHost(): HTMLElement | undefined {
+  return mountedHost
+}
 
 /**
  * Idempotent entry point. Chrome may inject the bundle again into the same tab,
@@ -21,13 +32,13 @@ export async function boot(core: Core): Promise<void> {
 
   window.__litedesign_state__ = 'starting'
 
-  const layers = await loadLayers()
+  const state = await loadState()
 
   // The user may have clicked again while storage was reading.
   if (window.__litedesign_state__ !== 'starting') return
 
   try {
-    mount(core, layers)
+    mount(core, state.layers)
   } catch (error) {
     window.__litedesign_state__ = undefined
     throw error
@@ -47,7 +58,7 @@ export async function applyOverlay(
     return
   }
 
-  const layers = options.layers ?? (await loadLayers())
+  const layers = options.layers ?? (await loadState()).layers
 
   if (window.__litedesign_state__ === 'active') {
     window.__litedesign_layers__?.(layers)
@@ -80,9 +91,11 @@ function mount(core: Core, initial: LayerName[]): void {
     handle?.destroy()
     handle = undefined
     observer = undefined
+    mountedHost = undefined
     window.__litedesign_teardown__ = undefined
     window.__litedesign_layers__ = undefined
     window.__litedesign_state__ = undefined
+    void saveState({ enabled: false, layers })
   }
 
   const refresh = (): void => {
@@ -95,7 +108,7 @@ function mount(core: Core, initial: LayerName[]): void {
     layers = next
     handle?.setLayers(layers)
     toolbar.setLayers(layers)
-    void saveLayers(layers)
+    void saveState({ enabled: true, layers })
   }
 
   toolbar = createToolbar({
@@ -113,7 +126,12 @@ function mount(core: Core, initial: LayerName[]): void {
   handle = core.render(graph, { layers, toolbar: toolbar.element })
   observer = observeChanges({ root, onChange: refresh })
 
+  mountedHost = handle.host
   window.__litedesign_layers__ = setLayers
   window.__litedesign_teardown__ = teardown
   window.__litedesign_state__ = 'active'
+
+  // A reload has to know the overlay was on, otherwise the next page load
+  // starts clean and the grid vanishes on every save.
+  void saveState({ enabled: true, layers })
 }
