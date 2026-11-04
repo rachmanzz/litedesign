@@ -391,7 +391,12 @@ export class Hub implements Bridge {
     const previous = this.#socketTab.get(socket)
     if (previous !== undefined && previous !== tabId) {
       const old = this.#clients.get(previous)
-      if (old?.socket === socket) this.#clients.delete(previous)
+      if (old?.socket === socket) {
+        this.#clients.delete(previous)
+        // Same as #drop: a client holding the old tabId must hear that it is
+        // gone, or the stale entry keeps shadowing the live one.
+        this.#broadcast({ type: 'page-gone', tabId: previous })
+      }
     }
 
     this.#clients.set(tabId, { ...page, socket })

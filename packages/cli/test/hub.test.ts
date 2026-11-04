@@ -32,12 +32,42 @@ async function start(): Promise<Hub> {
   return hub
 }
 
+async function waitFor(check: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    if (check()) return
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+
+  throw new Error('condition was not met in time')
+}
+
 afterEach(async () => {
   for (const socket of sockets.splice(0)) socket.terminate()
   for (const hub of hubs.splice(0)) await hub.close()
 })
 
 describe('Hub', () => {
+  it('announces page-gone when a socket re-announces under a new tabId', async () => {
+    const hub = await start()
+    const page = await open(`ws://127.0.0.1:${hub.port}`)
+    // A controller socket receives the broadcasts.
+    const watcher = await open(`ws://127.0.0.1:${hub.port}`)
+    const seen: Message[] = []
+    watcher.on('message', (data) => seen.push(JSON.parse(data.toString()) as Message))
+    watcher.send(JSON.stringify({ type: 'hello', role: 'mcp' }))
+
+    hello(page, 11, 'http://example.test/page')
+    await waitFor(() => seen.some((m) => m.type === 'page' && (m.page as Message)?.tabId === 11))
+
+    hello(page, 12, 'http://example.test/page')
+
+    // Without this the old entry is deleted silently and every client that
+    // tracked tab 11 keeps it alive in its own list.
+    await waitFor(() => seen.some((m) => m.type === 'page-gone' && m.tabId === 11))
+  })
+
   it('tracks a page and answers requests', async () => {
     const hub = await start()
     const socket = await open(`ws://127.0.0.1:${hub.port}`)
