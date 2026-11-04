@@ -1,6 +1,6 @@
 # @rahmantech/litedesign
 
-Figma-style grid, gap, and alignment on the real web page — plus an MCP bridge
+Grid, gap, and alignment on the real web page — plus an MCP bridge
 so agents can read and fix layouts.
 
 ## Install

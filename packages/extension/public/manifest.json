@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "litedesign",
   "version": "0.1.0",
-  "description": "Figma-style grid, gap, and alignment on the real web page.",
+  "description": "Grid, gap, and alignment on the real web page.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "background": {

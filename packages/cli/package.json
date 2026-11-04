@@ -1,7 +1,7 @@
 {
   "name": "@rahmantech/litedesign",
   "version": "0.1.0",
-  "description": "Figma-style grid, gap, and alignment on the real web page, plus an MCP bridge for agents.",
+  "description": "Grid, gap, and alignment on the real web page, plus an MCP bridge for agents.",
   "license": "Apache-2.0",
   "author": "Muhammad Abdurrahman",
   "type": "module",

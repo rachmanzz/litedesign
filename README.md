@@ -1,6 +1,6 @@
 # litedesign
 
-Figma-style grid, gap, and alignment on the real web page — plus an MCP bridge
+Grid, gap, and alignment on the real web page — plus an MCP bridge
 so an agent can read the live DOM and fix it.
 
 ![litedesign measuring a live page: an 8px grid, alignment guides, and gap labels drawn over the real content](img/example.png)
