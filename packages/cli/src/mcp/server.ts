@@ -1,8 +1,9 @@
 import { LAYERS, RULE_IDS } from '@litedesign/core'
 import { readConfig } from '../config.js'
 import { detectPlaywright } from '../drivers/index.js'
-import { getHub, getHubError, Hub, setHub, setHubError } from '../hub.js'
+import { getHub, getHubError, setHub, setHubError } from '../hub.js'
 import { VERSION } from '../version.js'
+import { ensureBridge } from '../ws.js'
 import { ToolError } from './errors.js'
 import { errorResult, type ToolResult, textResult } from './result.js'
 import { closeSession } from './session.js'
@@ -33,10 +34,10 @@ export async function runMcpServer(): Promise<void> {
 
   const config = await readConfig()
 
-  // The hub is optional: Playwright can drive the page without it. A busy port
-  // disables the extension driver instead of stopping the server.
+  // The bridge is its own process so it survives an MCP restart and the human
+  // can start or stop it with `litedesign ws`. Start it when it is missing.
   try {
-    setHub(await Hub.start(config.port))
+    setHub(await ensureBridge(config.port))
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     setHubError(reason)
@@ -71,7 +72,7 @@ export async function runMcpServer(): Promise<void> {
         port: config.port,
         rules: RULE_IDS,
         extension: {
-          connected: hub?.pages().length ?? 0,
+          connected: hub?.clientCount() ?? 0,
           pages: hub?.pages() ?? [],
           error: getHubError(),
         },

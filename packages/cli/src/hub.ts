@@ -16,6 +16,21 @@ export type WaitOutcome =
   | { status: 'timeout' }
   | { status: 'mismatch'; page: HubPage }
 
+/**
+ * What the tools and drivers need from the bridge. The daemon implements it
+ * in-process; the MCP server uses a client that forwards over a socket.
+ */
+export interface Bridge {
+  pages(): HubPage[]
+  find(url: string): HubPage | undefined
+  request<T>(tabId: number, action: string, payload?: unknown, timeoutMs?: number): Promise<T>
+  requestAny<T>(action: string, payload?: unknown, timeoutMs?: number): Promise<T>
+  hasClient(): boolean
+  clientCount(): number
+  waitForPage(url: string, timeoutMs: number): Promise<WaitOutcome>
+  close(): Promise<void>
+}
+
 type Client = HubPage & { socket: WebSocket }
 
 type Pending = {
@@ -24,6 +39,9 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>
   socket: WebSocket
   action: string
+  /** Set when the request came from an MCP client and the answer goes back to it. */
+  controller?: WebSocket
+  controllerId?: string
 }
 
 type Waiter = {
@@ -32,15 +50,16 @@ type Waiter = {
 }
 
 /**
- * One WebSocket server per MCP process. The extension connects out to it, so
- * the agent never needs an inbound port, a browser automation library, or a
- * browser profile of its own.
+ * The bridge daemon. It owns the WebSocket server and outlives any single MCP
+ * session: `litedesign ws start` runs it, `litedesign ws stop` ends it, and
+ * every MCP server connects to it as a controller.
  */
-export class Hub {
+export class Hub implements Bridge {
   readonly #server: WebSocketServer
   readonly #clients = new Map<number, Client>()
   readonly #socketTab = new Map<WebSocket, number>()
   readonly #sockets = new Set<WebSocket>()
+  readonly #controllers = new Set<WebSocket>()
   readonly #pending = new Map<string, Pending>()
   readonly #waiters = new Set<Waiter>()
   #ping: ReturnType<typeof setInterval> | undefined
@@ -125,6 +144,17 @@ export class Hub {
     return this.#firstSocket() !== undefined
   }
 
+  /** Number of connected extension workers, with or without an attached page. */
+  clientCount(): number {
+    let count = 0
+
+    for (const socket of this.#sockets) {
+      if (socket.readyState === WebSocket.OPEN) count += 1
+    }
+
+    return count
+  }
+
   #firstSocket(): WebSocket | undefined {
     for (const socket of this.#sockets) {
       if (socket.readyState === WebSocket.OPEN) return socket
@@ -204,6 +234,8 @@ export class Hub {
     const sockets = [...this.#sockets]
     for (const socket of sockets) socket.close(1001, 'litedesign server closing')
 
+    for (const socket of this.#controllers) socket.close(1001, 'litedesign server closing')
+
     await new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
         for (const socket of sockets) socket.terminate()
@@ -219,6 +251,10 @@ export class Hub {
 
   #accept(socket: WebSocket): void {
     this.#sockets.add(socket)
+    // An extension connects before it has a page to announce. Tell controllers
+    // right away, otherwise `hasClient` stays false until the first attach.
+    this.#broadcast({ type: 'extensions', count: this.clientCount() })
+
     socket.on('message', (data) => this.#receive(socket, data.toString()))
     socket.on('close', () => this.#drop(socket))
     socket.on('error', () => this.#drop(socket))
@@ -237,7 +273,11 @@ export class Hub {
 
     switch (message.type) {
       case 'hello':
-        this.#hello(socket, message)
+        if (message.role === 'mcp') this.#controllerHello(socket)
+        else this.#hello(socket, message)
+        return
+      case 'request':
+        this.#controllerRequest(socket, message)
         return
       case 'response':
         this.#response(message)
@@ -249,6 +289,84 @@ export class Hub {
       default:
         return
     }
+  }
+
+  #controllerHello(socket: WebSocket): void {
+    this.#sockets.delete(socket)
+    this.#controllers.add(socket)
+    this.#broadcast({ type: 'extensions', count: this.clientCount() })
+
+    socket.send(
+      JSON.stringify({ type: 'pages', pages: this.pages(), extensions: this.clientCount() }),
+    )
+  }
+
+  /**
+   * An MCP client asks the daemon to run something. The daemon forwards to the
+   * right extension socket and routes the answer back.
+   */
+  #controllerRequest(socket: WebSocket, message: Record<string, unknown>): void {
+    const { id, action } = message
+    if (typeof id !== 'string' || typeof action !== 'string') return
+
+    if (action === 'pages') {
+      this.#reply(socket, id, true, this.pages())
+      return
+    }
+
+    if (action === 'has-client') {
+      this.#reply(socket, id, true, this.hasClient())
+      return
+    }
+
+    const tabId = typeof message.tabId === 'number' ? message.tabId : undefined
+    const target = tabId === undefined ? this.#firstSocket() : this.#clients.get(tabId)?.socket
+
+    if (target === undefined || target.readyState !== WebSocket.OPEN) {
+      this.#reply(
+        socket,
+        id,
+        false,
+        undefined,
+        tabId === undefined
+          ? 'the extension is not connected. Is Chrome open with the extension loaded?'
+          : 'the page is no longer connected. Call inspect again.',
+      )
+      return
+    }
+
+    const forwardId = randomUUID()
+
+    const timer = setTimeout(() => {
+      this.#pending.delete(forwardId)
+      this.#reply(
+        socket,
+        id,
+        false,
+        undefined,
+        `the extension did not answer "${action}" within 30s`,
+      )
+    }, 30000)
+
+    this.#pending.set(forwardId, {
+      resolve: () => undefined,
+      reject: () => undefined,
+      timer,
+      socket: target,
+      action,
+      controller: socket,
+      controllerId: id,
+    })
+
+    target.send(
+      JSON.stringify({ type: 'request', id: forwardId, action, payload: message.payload }),
+    )
+  }
+
+  #reply(socket: WebSocket, id: string, ok: boolean, result?: unknown, error?: string): void {
+    if (socket.readyState !== WebSocket.OPEN) return
+
+    socket.send(JSON.stringify({ type: 'response', id, ok, result, error }))
   }
 
   #hello(socket: WebSocket, message: Record<string, unknown>): void {
@@ -279,6 +397,9 @@ export class Hub {
     this.#clients.set(tabId, { ...page, socket })
     this.#socketTab.set(socket, tabId)
 
+    this.#broadcast({ type: 'page', page })
+    this.#broadcast({ type: 'extensions', count: this.clientCount() })
+
     for (const waiter of [...this.#waiters]) {
       this.#waiters.delete(waiter)
       waiter.resolve(
@@ -297,6 +418,20 @@ export class Hub {
     this.#pending.delete(id)
     clearTimeout(pending.timer)
 
+    if (pending.controller !== undefined) {
+      const ok = message.ok === true
+      this.#reply(
+        pending.controller,
+        pending.controllerId ?? '',
+        ok,
+        message.result,
+        typeof message.error === 'string' && message.error !== ''
+          ? message.error
+          : `the extension failed to run "${pending.action}"`,
+      )
+      return
+    }
+
     if (message.ok === true) {
       pending.resolve(message.result)
       return
@@ -311,28 +446,51 @@ export class Hub {
     )
   }
 
+  #broadcast(message: unknown): void {
+    const raw = JSON.stringify(message)
+
+    for (const socket of this.#controllers) {
+      if (socket.readyState === WebSocket.OPEN) socket.send(raw)
+    }
+  }
+
   #drop(socket: WebSocket): void {
     const tabId = this.#socketTab.get(socket)
     this.#socketTab.delete(socket)
     this.#sockets.delete(socket)
+    this.#controllers.delete(socket)
 
     if (tabId !== undefined && this.#clients.get(tabId)?.socket === socket) {
       this.#clients.delete(tabId)
+      this.#broadcast({ type: 'page-gone', tabId })
     }
+
+    this.#broadcast({ type: 'extensions', count: this.clientCount() })
 
     for (const [id, pending] of this.#pending) {
       if (pending.socket !== socket) continue
 
       this.#pending.delete(id)
       clearTimeout(pending.timer)
-      pending.reject(new ToolError('the page disconnected before it answered'))
+
+      if (pending.controller !== undefined) {
+        this.#reply(
+          pending.controller,
+          pending.controllerId ?? '',
+          false,
+          undefined,
+          'the page disconnected before it answered',
+        )
+      } else {
+        pending.reject(new ToolError('the page disconnected before it answered'))
+      }
     }
   }
 
   #broadcastPing(): void {
-    for (const client of this.#clients.values()) {
-      if (client.socket.readyState === WebSocket.OPEN) {
-        client.socket.send(JSON.stringify({ type: 'ping' }))
+    for (const socket of this.#sockets) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'ping' }))
       }
     }
   }
@@ -353,10 +511,10 @@ function normalize(url: string): string {
   }
 }
 
-let current: Hub | null = null
+let current: Bridge | null = null
 let currentError: string | null = null
 
-export function setHub(hub: Hub): void {
+export function setHub(hub: Bridge): void {
   current = hub
   currentError = null
 }
@@ -366,7 +524,7 @@ export function setHubError(message: string): void {
   currentError = message
 }
 
-export function getHub(): Hub | null {
+export function getHub(): Bridge | null {
   return current
 }
 

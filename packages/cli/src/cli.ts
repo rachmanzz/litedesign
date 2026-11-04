@@ -1,6 +1,7 @@
 import { doctor } from './commands/doctor.js'
 import { extensionCommand } from './commands/extension.js'
 import { setup } from './commands/setup.js'
+import { wsCommand } from './commands/ws.js'
 import { runMcpServer } from './mcp/server.js'
 import { VERSION } from './version.js'
 
@@ -12,6 +13,9 @@ const HELP = `
     litedesign extension path     print the folder to load unpacked
     litedesign extension update   re-copy after an upgrade
     litedesign doctor             check node, extension, and port
+    litedesign ws start           start the bridge in the background
+    litedesign ws stop            stop the bridge
+    litedesign ws status          show the bridge and connected pages
     litedesign mcp                start the MCP server (stdio)
 
   Options:
@@ -41,6 +45,9 @@ export async function run(argv: string[]): Promise<void> {
       return
     case 'doctor':
       await doctor()
+      return
+    case 'ws':
+      await wsCommand(rest)
       return
     case 'mcp':
       await runMcpServer()

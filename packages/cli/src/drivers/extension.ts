@@ -1,5 +1,5 @@
 import type { Graph, Issue } from '@litedesign/core/types'
-import { type Hub, type HubPage, sameUrl } from '../hub.js'
+import { type Bridge, type HubPage, sameUrl } from '../hub.js'
 import { AwaitingUserError, MismatchError, ToolError } from '../mcp/errors.js'
 import type {
   AnnotateOptions,
@@ -20,10 +20,10 @@ type ShotPayload = { data: string }
  * tab the human is looking at, then checks that the URL is the expected one.
  */
 export class ExtensionDriver implements Driver {
-  readonly #hub: Hub
+  readonly #hub: Bridge
   #target: string | undefined
 
-  constructor(hub: Hub) {
+  constructor(hub: Bridge) {
     this.#hub = hub
   }
 

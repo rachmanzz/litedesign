@@ -1,25 +1,16 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { createServer } from 'node:net'
 import path from 'node:path'
 import { readConfig } from '../config.js'
 import { CONFIG, EXT_DIR } from '../paths.js'
 import { VERSION } from '../version.js'
+import { wsStatus } from '../ws.js'
 
 type Status = 'ok' | 'warn' | 'fail'
 
 function line(status: Status, label: string, detail: string): void {
   const mark = status === 'ok' ? 'ok  ' : status === 'warn' ? 'warn' : 'fail'
   console.log(`  ${mark}  ${label.padEnd(12)} ${detail}`)
-}
-
-function portFree(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const server = createServer()
-    server.once('error', () => resolve(false))
-    server.once('listening', () => server.close(() => resolve(true)))
-    server.listen(port, '127.0.0.1')
-  })
 }
 
 export async function doctor(): Promise<void> {
@@ -44,8 +35,14 @@ export async function doctor(): Promise<void> {
     line('warn', 'config', 'missing — run: litedesign setup')
   }
 
-  const free = await portFree(port)
-  line(free ? 'ok' : 'warn', 'port', free ? `${port} free` : `${port} in use`)
+  const status = await wsStatus(port)
+  line(
+    status.running ? 'ok' : 'warn',
+    'bridge',
+    status.running
+      ? `running on ${port} · ${status.extensions ?? 0} extension(s) · ${status.pages?.length ?? 0} page(s)`
+      : `stopped — run: litedesign ws start`,
+  )
 
   console.log('')
 }
