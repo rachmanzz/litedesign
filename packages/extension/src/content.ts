@@ -1,54 +1,54 @@
-type GraphSummary = { nodes: unknown[] }
+type Handle = {
+  update(graph: unknown): void
+  destroy(): void
+}
+
+type Core = {
+  buildGraph(root?: Element | null): unknown
+  render(graph: unknown): Handle
+  VERSION: string
+}
 
 declare global {
   interface Window {
-    __litedesign?: {
-      buildGraph: (root?: Element | null) => GraphSummary
-      VERSION: string
-    }
+    __litedesign?: Core
     __litedesign_active__?: boolean
+    __litedesign_handle__?: Handle
+    __litedesign_onresize__?: () => void
   }
 }
 
-const HOST_ID = '__litedesign_host__'
 const ACTIVE = '__litedesign_active__'
 
+/**
+ * State lives on `window`, not in this module. Chrome may inject the script
+ * again into the same tab, and a fresh module scope would forget the handle
+ * while the overlay stays mounted.
+ */
 function unmount(): void {
-  document.getElementById(HOST_ID)?.remove()
+  const onResize = window.__litedesign_onresize__
+  if (onResize !== undefined) window.removeEventListener('resize', onResize)
+
+  window.__litedesign_handle__?.destroy()
+  window.__litedesign_handle__ = undefined
+  window.__litedesign_onresize__ = undefined
   window[ACTIVE] = false
 }
 
-function mount(core: NonNullable<Window['__litedesign']>): void {
-  const host = document.createElement('div')
-  host.id = HOST_ID
-  host.style.cssText =
-    'position:fixed;inset:0;pointer-events:none;z-index:2147483647;contain:strict'
+function mount(core: Core): void {
+  const build = (): unknown => core.buildGraph(document.body)
+  const handle = core.render(build())
+  const onResize = (): void => handle.update(build())
 
-  const shadow = host.attachShadow({ mode: 'closed' })
-  const badge = document.createElement('div')
-  badge.style.cssText = [
-    'position:fixed',
-    'right:16px',
-    'bottom:16px',
-    'padding:6px 10px',
-    'border-radius:999px',
-    'background:#111',
-    'color:#fff',
-    'font:12px/1.4 ui-monospace,monospace',
-    'box-shadow:0 2px 8px rgba(0,0,0,.25)',
-  ].join(';')
-
-  shadow.append(badge)
-  document.documentElement.append(host)
-
-  const graph = core.buildGraph(document.body)
-  badge.textContent = `litedesign · ${graph.nodes.length} node`
+  window.__litedesign_handle__ = handle
+  window.__litedesign_onresize__ = onResize
+  window.addEventListener('resize', onResize)
   window[ACTIVE] = true
 }
 
 const core = window.__litedesign
 
-if (!core) {
+if (core === undefined) {
   console.warn('[litedesign] core not found; core.iife.js must be injected first')
 } else if (window[ACTIVE]) {
   unmount()

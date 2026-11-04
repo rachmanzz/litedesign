@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>litedesign — live demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        padding: 48px;
+        background: #ffffff;
+        color: #111111;
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+
+      h1 {
+        margin-bottom: 8px;
+        font-size: 28px;
+      }
+
+      p.lede {
+        max-width: 60ch;
+        margin-bottom: 32px;
+        color: #9ca3af;
+      }
+
+      .toolbar {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        border-radius: 10px;
+        background: #111111;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+      }
+
+      .toolbar button {
+        padding: 6px 10px;
+        border: 0;
+        border-radius: 6px;
+        background: #262626;
+        color: #d4d4d4;
+        font: 12px/1 ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      .toolbar button.on {
+        background: #3b82f6;
+        color: #ffffff;
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 24px;
+      }
+
+      .card {
+        flex: 1;
+        padding: 16px;
+        border-radius: 8px;
+        background: #f3f4f6;
+      }
+
+      .card h2 {
+        margin-bottom: 4px;
+        font-size: 16px;
+      }
+
+      .card p {
+        color: #6b7280;
+        font-size: 14px;
+      }
+
+      .row.offset .card:nth-child(2) {
+        margin-top: 3px;
+      }
+
+      .radius-mix > div {
+        padding: 12px;
+        background: #f3f4f6;
+      }
+
+      .radius-mix > div:nth-child(1) {
+        border-radius: 8px;
+      }
+
+      .radius-mix > div:nth-child(2) {
+        border-radius: 8px;
+      }
+
+      .radius-mix > div:nth-child(3) {
+        border-radius: 14px;
+      }
+
+      .clipped {
+        width: 240px;
+        overflow: hidden;
+        padding: 12px;
+        border-radius: 8px;
+        background: #f3f4f6;
+        white-space: nowrap;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <button type="button" data-layer="grid">grid</button>
+      <button type="button" data-layer="guide" class="on">guide</button>
+      <button type="button" data-layer="gap" class="on">gap</button>
+      <button type="button" data-layer="issue" class="on">issue</button>
+      <button type="button" data-action="refresh">rebuild</button>
+    </div>
+
+    <h1>litedesign</h1>
+    <p class="lede">
+      This page has deliberate spacing, alignment, radius, and contrast defects.
+      The overlay reads the live DOM; nothing below is a mockup.
+    </p>
+
+    <div class="row">
+      <div class="card">
+        <h2>Spacing</h2>
+        <p>Gaps here are 10px, off the 4px scale.</p>
+      </div>
+      <div class="card">
+        <h2>Alignment</h2>
+        <p>The second row is shifted by 3px.</p>
+      </div>
+      <div class="card">
+        <h2>Radius</h2>
+        <p>Most cards use 8px, one uses 14px.</p>
+      </div>
+    </div>
+
+    <div class="row offset">
+      <div class="card">
+        <h2>Near miss</h2>
+        <p>Close enough to look aligned, far enough to measure.</p>
+      </div>
+      <div class="card">
+        <h2>Near miss</h2>
+        <p>This card starts three pixels lower.</p>
+      </div>
+    </div>
+
+    <div class="stack radius-mix">
+      <div>radius 8px</div>
+      <div>radius 8px</div>
+      <div>radius 14px</div>
+      <div class="clipped">This line is deliberately wider than its 240px box.</div>
+    </div>
+
+    <script src="../packages/core/dist/core.iife.js"></script>
+    <script>
+      const core = window.__litedesign
+      const layers = ['guide', 'gap', 'issue']
+      const handle = core.render(core.buildGraph(document.body), { layers })
+
+      for (const button of document.querySelectorAll('[data-layer]')) {
+        button.addEventListener('click', () => {
+          const name = button.dataset.layer
+          const index = layers.indexOf(name)
+
+          if (index === -1) layers.push(name)
+          else layers.splice(index, 1)
+
+          button.classList.toggle('on', index === -1)
+          handle.setLayers(layers)
+        })
+      }
+
+      document.querySelector('[data-action="refresh"]').addEventListener('click', () => {
+        handle.update(core.buildGraph(document.body))
+      })
+    </script>
+  </body>
+</html>

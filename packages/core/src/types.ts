@@ -6,24 +6,29 @@
  * that use `lib: DOM`.
  */
 
+export type Axis = 'x' | 'y'
+
 export type Rect = { x: number; y: number; w: number; h: number }
 
+/** Scroll and client box, used by the overflow rule. */
+export type Box = {
+  scrollW: number
+  scrollH: number
+  clientW: number
+  clientH: number
+}
+
+/**
+ * Only the properties the rules read. Adding more is cheap; carrying fields no
+ * consumer reads is not.
+ */
 export type Styles = {
   display: string
-  position: string
-  flexDirection: string
-  gap: string
-  margin: string
-  padding: string
   borderRadius: string
-  boxShadow: string
   color: string
   backgroundColor: string
   fontSize: string
   fontWeight: string
-  lineHeight: string
-  fontFamily: string
-  zIndex: string
 }
 
 export type GraphNode = {
@@ -31,6 +36,9 @@ export type GraphNode = {
   selector: string
   tag: string
   rect: Rect
+  box: Box
+  /** Direct text of this element, collapsed and truncated. Empty for containers. */
+  text: string
   depth: number
   parent: string | null
   children: string[]
@@ -40,13 +48,13 @@ export type GraphNode = {
 export type Gap = {
   a: string
   b: string
-  axis: 'x' | 'y'
+  axis: Axis
   distance: number
   kind: 'sibling' | 'visual'
 }
 
 export type Guide = {
-  axis: 'x' | 'y'
+  axis: Axis
   edge: 'left' | 'right' | 'center' | 'top' | 'bottom'
   value: number
   members: string[]
@@ -79,4 +87,6 @@ export type Graph = {
   gaps: Gap[]
   guides: Guide[]
   issues: Issue[]
+  /** True when the walk hit MAX_NODES and stopped early. */
+  truncated: boolean
 }

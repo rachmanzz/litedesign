@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>litedesign fixture — misaligned</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: #ffffff;
+        color: #111111;
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 24px;
+      }
+
+      .card {
+        padding: 16px;
+        border-radius: 8px;
+        background: #f3f4f6;
+      }
+
+      .offset {
+        margin-left: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stack">
+      <section class="card">First</section>
+      <section class="card offset">Second</section>
+    </div>
+  </body>
+</html>

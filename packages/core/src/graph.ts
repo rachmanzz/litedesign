@@ -1,89 +1,63 @@
-import type { Graph, GraphNode, Styles } from './types.js'
-
-function pathOf(el: Element): string {
-  const parts: string[] = []
-  let cur: Element | null = el
-
-  while (cur !== null) {
-    const parent: Element | null = cur.parentElement
-    if (parent === null) break
-    const index = Array.prototype.indexOf.call(parent.children, cur) + 1
-    parts.unshift(`${cur.tagName.toLowerCase()}:nth-child(${index})`)
-    cur = parent
-  }
-
-  return parts.join(' > ')
-}
-
-function readStyles(el: Element): Styles {
-  const s = getComputedStyle(el)
-
-  return {
-    display: s.display,
-    position: s.position,
-    flexDirection: s.flexDirection,
-    gap: s.gap,
-    margin: s.margin,
-    padding: s.padding,
-    borderRadius: s.borderRadius,
-    boxShadow: s.boxShadow,
-    color: s.color,
-    backgroundColor: s.backgroundColor,
-    fontSize: s.fontSize,
-    fontWeight: s.fontWeight,
-    lineHeight: s.lineHeight,
-    fontFamily: s.fontFamily,
-    zIndex: s.zIndex,
-  }
-}
+import { findGuides } from './align.js'
+import { MAX_NODES } from './constants.js'
+import { extractNode } from './extract.js'
+import { findGaps } from './gaps.js'
+import { findIssues } from './rules/index.js'
+import type { Graph, GraphNode } from './types.js'
+import { collectElements } from './walk.js'
 
 /**
- * v0: nodes and rects only. Gaps, alignment, and rules arrive in M1.
+ * Turns the live page into a measurement graph.
+ *
+ * Everything after `collectElements` is pure data, which is why the rules can
+ * be tested in Node without a DOM.
  */
 export function buildGraph(root: Element | null = null): Graph {
-  const nodes: GraphNode[] = []
-  const byId = new Map<string, GraphNode>()
   const start = root ?? (typeof document === 'undefined' ? null : document.body)
 
-  const visit = (el: Element, parentId: string | null, depth: number): void => {
-    const rect = el.getBoundingClientRect()
-    if (rect.width === 0 && rect.height === 0) return
+  if (start === null) return emptyGraph()
 
-    const id = pathOf(el)
-    const node: GraphNode = {
-      id,
-      selector: id,
-      tag: el.tagName.toLowerCase(),
-      rect: {
-        x: rect.left + window.scrollX,
-        y: rect.top + window.scrollY,
-        w: rect.width,
-        h: rect.height,
-      },
-      depth,
-      parent: parentId,
-      children: [],
-      styles: readStyles(el),
-    }
+  const entries = collectElements(start)
+  const nodes: GraphNode[] = []
+  const byId = new Map<string, GraphNode>()
+  const ids: string[] = []
 
+  for (const entry of entries) {
+    const parentId = entry.parent >= 0 ? (ids[entry.parent] ?? null) : null
+    const node = extractNode(entry.el, entry.id, parentId, entry.depth)
+
+    ids.push(node.id)
     nodes.push(node)
-    byId.set(id, node)
-    if (parentId) byId.get(parentId)?.children.push(id)
-
-    for (const child of Array.from(el.children)) visit(child, id, depth + 1)
+    byId.set(node.id, node)
+    if (parentId !== null) byId.get(parentId)?.children.push(node.id)
   }
 
-  if (start) visit(start, null, 0)
-
-  return {
+  const graph: Graph = {
     url: typeof location === 'undefined' ? '' : location.href,
     viewport: {
       w: typeof innerWidth === 'undefined' ? 0 : innerWidth,
       h: typeof innerHeight === 'undefined' ? 0 : innerHeight,
     },
     nodes,
+    gaps: findGaps(nodes),
+    guides: findGuides(nodes),
+    issues: [],
+    truncated: entries.length >= MAX_NODES,
+  }
+
+  graph.issues = findIssues(graph)
+
+  return graph
+}
+
+function emptyGraph(): Graph {
+  return {
+    url: '',
+    viewport: { w: 0, h: 0 },
+    nodes: [],
     gaps: [],
     guides: [],
     issues: [],
+    truncated: false,
   }
 }
