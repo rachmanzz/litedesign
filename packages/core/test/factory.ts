@@ -7,6 +7,9 @@ const BASE_STYLES: Styles = {
   backgroundColor: 'rgba(0, 0, 0, 0)',
   fontSize: '16px',
   fontWeight: '400',
+  padding: '0px',
+  margin: '0px',
+  gap: 'normal',
 }
 
 export type NodeOverrides = Omit<Partial<GraphNode>, 'styles' | 'box'> & {

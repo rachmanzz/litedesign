@@ -19,8 +19,8 @@ export type Box = {
 }
 
 /**
- * Only the properties the rules read. Adding more is cheap; carrying fields no
- * consumer reads is not.
+ * Only the properties a consumer reads. The rules use the visual ones; the
+ * hover inspector reads the box-model values.
  */
 export type Styles = {
   display: string
@@ -29,6 +29,9 @@ export type Styles = {
   backgroundColor: string
   fontSize: string
   fontWeight: string
+  padding: string
+  margin: string
+  gap: string
 }
 
 export type GraphNode = {

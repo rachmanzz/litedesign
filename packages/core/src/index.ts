@@ -8,5 +8,6 @@ export { LAYERS, type LayerName } from './render/layers.js'
 export { type OverlayHandle, type OverlayOptions, render } from './render/overlay.js'
 export { defaultRules, findIssues, type Rule } from './rules/index.js'
 export * from './types.js'
+export { pathOf } from './walk.js'
 
 export const VERSION = '0.1.0'

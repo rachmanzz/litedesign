@@ -58,5 +58,8 @@ function readStyles(el: Element): Styles {
     backgroundColor: style.backgroundColor,
     fontSize: style.fontSize,
     fontWeight: style.fontWeight,
+    padding: style.padding,
+    margin: style.margin,
+    gap: style.gap,
   }
 }

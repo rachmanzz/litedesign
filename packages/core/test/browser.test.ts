@@ -75,6 +75,53 @@ suite('browser geometry', () => {
     expect(measured.issues.some((item) => item.rule === 'alignment-near-miss')).toBe(true)
   })
 
+  it('resolves a measured element by its structural path', async () => {
+    if (browser === undefined) throw new Error('browser not started')
+
+    const page = await browser.newPage()
+    await page.goto(`file://${path.join(root, 'fixtures', 'three-column.html')}`)
+    await page.addScriptTag({ path: dist })
+
+    const result = await page.evaluate(() => {
+      const core = (
+        window as unknown as {
+          __litedesign: {
+            buildGraph: (root: Element) => {
+              nodes: Array<{ id: string; styles: { padding: string; margin: string; gap: string } }>
+            }
+            pathOf: (el: Element) => string
+          }
+        }
+      ).__litedesign
+
+      const graph = core.buildGraph(document.body)
+      const row = document.querySelector('.row')
+      const card = document.querySelector('.row > div')
+      if (row === null || card === null) return null
+
+      const rowNode = graph.nodes.find((node) => node.id === core.pathOf(row))
+      const cardNode = graph.nodes.find((node) => node.id === core.pathOf(card))
+
+      return {
+        rowFound: rowNode !== undefined,
+        cardFound: cardNode !== undefined,
+        gap: rowNode?.styles.gap,
+        padding: cardNode?.styles.padding,
+        margin: cardNode?.styles.margin,
+      }
+    })
+
+    await page.close()
+
+    expect(result).toEqual({
+      rowFound: true,
+      cardFound: true,
+      gap: '8px',
+      padding: '16px',
+      margin: '0px',
+    })
+  })
+
   it('does not shift layout when the overlay mounts', async () => {
     if (browser === undefined) throw new Error('browser not started')
 

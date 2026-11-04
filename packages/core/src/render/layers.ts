@@ -171,14 +171,54 @@ export function drawIssues(layer: HTMLElement, graph: Graph): void {
   }
 }
 
-export function drawHover(layer: HTMLElement, rect: DOMRect | null): void {
+const HOVER_BORDER = 'rgba(59, 130, 246, 0.9)'
+const HOVER_FILL = 'rgba(59, 130, 246, 0.08)'
+
+/**
+ * Outline plus box-model card for the hovered node. The node rect is in
+ * document space, so scrolling can redraw the hover from the last graph.
+ */
+export function drawHover(layer: HTMLElement, node: GraphNode | null): void {
   layer.replaceChildren()
-  if (rect === null) return
+  if (node === null) return
+
+  const left = node.rect.x - window.scrollX
+  const top = node.rect.y - window.scrollY
 
   box(
     layer,
-    `left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;border:1px solid rgba(59, 130, 246, 0.9);background:rgba(59, 130, 246, 0.08)`,
+    `left:${left}px;top:${top}px;width:${node.rect.w}px;height:${node.rect.h}px;border:1px solid ${HOVER_BORDER};background:${HOVER_FILL}`,
   )
+
+  const lines = [
+    `${node.tag}  ${round(node.rect.w, 0)} × ${round(node.rect.h, 0)}`,
+    `padding  ${node.styles.padding}`,
+    `margin   ${node.styles.margin}`,
+  ]
+
+  if (node.styles.gap !== 'normal' && node.styles.gap !== '0px') {
+    lines.push(`gap      ${node.styles.gap}`)
+  }
+
+  // Below the top edge the card would leave the viewport; put it inside.
+  const above = top > 72
+
+  card(
+    layer,
+    lines.join('\n'),
+    left,
+    above ? top - 6 : top + 6,
+    above ? 'translateY(-100%)' : 'none',
+  )
+}
+
+function card(layer: HTMLElement, text: string, x: number, y: number, transform: string): void {
+  const element = box(
+    layer,
+    `left:${x}px;top:${y}px;transform:${transform};padding:6px 8px;border-radius:6px;background:rgba(17, 17, 17, 0.92);color:#fff;font:11px/1.5 ui-monospace,monospace;white-space:pre`,
+  )
+
+  element.textContent = text
 }
 
 function box(layer: HTMLElement, css: string): HTMLDivElement {

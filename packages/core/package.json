@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "main": "./dist/core.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/core.js"
+    }
+  },
   "scripts": {
     "build": "node ../../scripts/build.mjs"
   }

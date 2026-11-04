@@ -199,7 +199,11 @@ importers:
 
   packages/core: {}
 
-  packages/extension: {}
+  packages/extension:
+    dependencies:
+      '@litedesign/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 
