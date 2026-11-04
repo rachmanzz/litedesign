@@ -303,7 +303,10 @@ suite('extension lifecycle', () => {
     await mount(page)
 
     const shown = await send(page, 'overlay', { enabled: true, layers: ['grid', 'gap'] })
-    expect(shown).toEqual({ ok: true, result: { enabled: true, layers: ['grid', 'gap'] } })
+    expect(shown).toEqual({
+      ok: true,
+      result: { enabled: true, layers: ['grid', 'gap'], focus: null },
+    })
 
     // The answer is the page's own state, so the toolbar has to agree with it.
     const client = await shadowClient(page)
@@ -311,8 +314,78 @@ suite('extension lifecycle', () => {
     expect(attribute(issue, 'aria-pressed')).toBe('false')
 
     const hidden = await send(page, 'overlay', { enabled: false })
-    expect(hidden).toEqual({ ok: true, result: { enabled: false, layers: [] } })
+    expect(hidden).toEqual({
+      ok: true,
+      result: { enabled: false, layers: [], focus: null },
+    })
     expect(await overlayState(page)).toEqual({ exists: false, display: '', state: null })
+
+    expect(errors).toEqual([])
+    await page.close()
+  })
+
+  it('toggles the dim and the spotlight independently from the toolbar', async () => {
+    const { page, errors } = await open()
+    await mount(page)
+
+    const client = await shadowClient(page)
+
+    // Spotlight something so the layers have content to lose.
+    const focused = await send(page, 'overlay', { enabled: true, focus: '.row > div' })
+    expect(focused).toEqual({
+      ok: true,
+      result: {
+        enabled: true,
+        layers: expect.any(Array),
+        focus: expect.any(String),
+      },
+    })
+
+    const layerStyle = (name: string): Promise<string> =>
+      snapshot(client).then((nodes) => {
+        const layer = nodes.find(
+          (node) => node.nodeName === 'DIV' && attribute(node, 'data-layer') === name,
+        )
+        if (layer === undefined) return ''
+        return attribute(layer, 'style') ?? ''
+      })
+    const dim = (): Promise<CdpNode | undefined> =>
+      snapshot(client).then((nodes) =>
+        nodes.find((node) => (attribute(node, 'style') ?? '').includes('box-shadow')),
+      )
+    const outline = (): Promise<CdpNode | undefined> =>
+      snapshot(client).then((nodes) =>
+        nodes.find((node) => (attribute(node, 'style') ?? '').includes('2px solid')),
+      )
+
+    expect(await dim()).toBeDefined()
+    expect(await outline()).toBeDefined()
+
+    // Dim off: the page goes bright, the spotlight stays.
+    await click(client, await findButton(client, 'data-layer', 'dim'))
+
+    expect(attribute(await findButton(client, 'data-layer', 'dim'), 'aria-pressed')).toBe('false')
+    expect(await layerStyle('dim')).toContain('display: none')
+    expect(await dim()).toBeUndefined()
+    expect(await outline()).toBeDefined()
+
+    // Focus off: the spotlight goes, the page stays bright.
+    await click(client, await findButton(client, 'data-layer', 'focus'))
+
+    expect(await layerStyle('focus')).toContain('display: none')
+    expect(await outline()).toBeUndefined()
+    expect(await dim()).toBeUndefined()
+
+    // The focus state itself is untouched: toggling back on restores it.
+    const after = await send(page, 'overlay', { enabled: true })
+    const layers = (after as { result: { layers: string[] } }).result.layers
+    expect(layers).not.toContain('dim')
+    expect(layers).not.toContain('focus')
+    expect(await overlayState(page)).toEqual({ exists: true, display: '', state: 'active' })
+
+    await click(client, await findButton(client, 'data-layer', 'focus'))
+
+    expect(await outline()).toBeDefined()
 
     expect(errors).toEqual([])
     await page.close()
@@ -336,7 +409,14 @@ suite('extension lifecycle', () => {
       const scope = globalThis as unknown as Record<string, unknown>
       return scope.__litedesign_storage__
     })
-    expect(stored).toEqual({ litedesign: { enabled: true, layers: ['grid', 'hover'] } })
+    expect(stored).toEqual({
+      litedesign: {
+        enabled: true,
+        layers: ['grid', 'hover'],
+        focus: null,
+        grid: { step: 8, axis: 'both' },
+      },
+    })
     expect(errors).toEqual([])
 
     await page.close()
@@ -352,6 +432,48 @@ suite('extension lifecycle', () => {
     expect(await overlayState(page)).toEqual({ exists: false, display: '', state: null })
     expect(errors).toEqual([])
 
+    await page.close()
+  })
+
+  it('draws the labels the human pinned and reports them to the bridge', async () => {
+    const { page, errors } = await open()
+    await mount(page)
+
+    const client = await shadowClient(page)
+
+    // Turn the overlay off, then seed a label as if the human had pinned it.
+    await send(page, 'overlay', { enabled: false })
+    await page.evaluate(() => {
+      const scope = globalThis as unknown as {
+        __litedesign: { buildGraph(root: Element): { nodes: { tag: string; selector: string }[] } }
+        __litedesign_storage__: Record<string, unknown>
+      }
+      const node = scope.__litedesign.buildGraph(document.body).nodes.find((n) => n.tag === 'div')
+      if (node === undefined) throw new Error('no div in the graph')
+
+      scope.__litedesign_storage__['litedesign-labels'] = {
+        [`${location.origin}${location.pathname}`]: [
+          { id: 'seed-1', text: 'login', selector: node.selector },
+        ],
+      }
+    })
+
+    // Remount: the badge comes back from storage with the overlay.
+    await send(page, 'overlay', { enabled: true })
+    await page.waitForFunction(() => window.__litedesign_state__ === 'active')
+    await page.waitForTimeout(100)
+
+    expect(texts(await snapshot(client))).toContain('login')
+
+    const reported = await send(page, 'labels')
+    expect(reported).toEqual({
+      ok: true,
+      result: {
+        labels: [{ id: 'seed-1', text: 'login', selector: expect.any(String) }],
+      },
+    })
+
+    expect(errors).toEqual([])
     await page.close()
   })
 })

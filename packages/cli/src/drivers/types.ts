@@ -7,12 +7,20 @@ export type OverlayOptions = {
   enabled: boolean
   /** Layers to show. Omit to keep the ones the user last chose. */
   layers?: LayerName[]
+  /**
+   * Spotlight one component: everything else dims and the target is outlined.
+   * A selector string sets it, null clears it, omit to leave it unchanged.
+   * Focusing scrolls the target to the center of the viewport.
+   */
+  focus?: string | null
 }
 
 /** What the page reports after applying an overlay change. */
 export type OverlayResult = {
   enabled: boolean
   layers: LayerName[]
+  /** The focused selector as the page reports it; null when nothing is. */
+  focus: string | null
 }
 
 export type ShotOptions = {
@@ -48,6 +56,15 @@ export type WaitResult =
   | { status: 'mismatch'; url: string }
 
 /**
+ * A name the human pinned onto a part of the page, so the agent can address
+ * it by name. Labels belong to the human; the driver surface is read-only.
+ */
+export type LabelMark = {
+  label: string
+  selector: string
+}
+
+/**
  * The tool layer never knows which driver is active. Playwright and the
  * extension bridge implement the same surface.
  */
@@ -60,6 +77,8 @@ export type Driver = {
   annotate(options?: AnnotateOptions): Promise<Buffer>
   /** Draw or clear the overlay in the page the human is looking at. */
   overlay(options: OverlayOptions): Promise<OverlayResult>
+  /** Names the human pinned in the page the human is looking at. */
+  labels(): Promise<LabelMark[]>
   close(): Promise<void>
   /** Extension only: block until a page with this URL connects. */
   waitForPage?(url: string, timeoutMs: number): Promise<WaitResult>

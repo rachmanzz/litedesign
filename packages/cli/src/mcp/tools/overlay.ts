@@ -6,6 +6,7 @@ import { requirePage } from '../session.js'
 export type OverlayInput = {
   enabled?: boolean
   layers?: string[]
+  focus?: string | null
 }
 
 /**
@@ -21,11 +22,12 @@ export async function overlayTool(input: OverlayInput): Promise<ToolResult> {
   const enabled = input.enabled !== false
   const layers = parseLayers(input.layers)
 
-  const result = await driver.overlay({ enabled, layers })
+  const result = await driver.overlay({ enabled, layers, focus: input.focus })
 
   return textResult({
     status: result.enabled ? 'shown' : 'hidden',
     layers: result.layers,
+    focus: result.focus,
   })
 }
 

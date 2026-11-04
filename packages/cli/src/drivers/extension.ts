@@ -4,6 +4,7 @@ import { AwaitingUserError, MismatchError, ToolError } from '../mcp/errors.js'
 import type {
   AnnotateOptions,
   Driver,
+  LabelMark,
   MeasureResult,
   OverlayOptions,
   OverlayResult,
@@ -89,6 +90,30 @@ export class ExtensionDriver implements Driver {
     }
 
     return result
+  }
+
+  async labels(): Promise<LabelMark[]> {
+    const result = await this.#request<
+      { labels?: { text?: unknown; selector?: unknown }[] } | undefined
+    >('labels')
+
+    // An extension built before the labels tool answered `{ ok: true }` with
+    // no result. Tell the human to refresh rather than crash on `labels`.
+    if (result === undefined) {
+      throw new ToolError(
+        'the extension did not report labels. Reload the litedesign extension at chrome://extensions, then try again.',
+      )
+    }
+
+    const labels: LabelMark[] = []
+
+    for (const entry of result.labels ?? []) {
+      if (typeof entry.text === 'string' && typeof entry.selector === 'string') {
+        labels.push({ label: entry.text, selector: entry.selector })
+      }
+    }
+
+    return labels
   }
 
   async close(): Promise<void> {

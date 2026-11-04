@@ -1,7 +1,8 @@
+import { addLabel, type Label, loadLabels, removeLabel, renameLabel } from './labels.js'
 import { type Observer, observeChanges } from './observer.js'
 import { loadState, saveState } from './store.js'
 import { createToolbar, type Toolbar } from './toolbar.js'
-import type { Core, Graph, LayerName, OverlayHandle } from './types.js'
+import type { Core, Graph, GridConfig, LayerName, OverlayHandle } from './types.js'
 
 /**
  * The host of the overlay that is on screen. The bridge hides it during a
@@ -38,7 +39,7 @@ export async function boot(core: Core): Promise<void> {
   if (window.__litedesign_state__ !== 'starting') return
 
   try {
-    mount(core, state.layers)
+    mount(core, state.layers, state.grid)
   } catch (error) {
     window.__litedesign_state__ = undefined
     throw error
@@ -50,45 +51,58 @@ export async function boot(core: Core): Promise<void> {
  * state, because the agent says exactly what it wants to see.
  *
  * Returns what the page is actually showing afterwards, so the tool can report
- * a reading instead of echoing the request.
+ * a reading instead of echoing the request. `focus` is that kind of reading:
+ * a selector that resolves to nothing reports `null` instead of failing the
+ * overlay, and omitting `focus` leaves the current one untouched.
  */
 export async function applyOverlay(
   core: Core,
-  options: { enabled: boolean; layers?: LayerName[] },
-): Promise<{ enabled: boolean; layers: LayerName[] }> {
+  options: { enabled: boolean; layers?: LayerName[]; focus?: string | null },
+): Promise<{ enabled: boolean; layers: LayerName[]; focus: string | null }> {
   if (!options.enabled) {
     window.__litedesign_teardown__?.()
-    return { enabled: false, layers: [] }
+    return { enabled: false, layers: [], focus: null }
   }
 
-  const layers = options.layers ?? (await loadState()).layers
+  const stored = await loadState()
+  const layers = options.layers ?? stored.layers
 
   if (window.__litedesign_state__ === 'active') {
     window.__litedesign_layers__?.(layers)
-    return { enabled: true, layers }
+  } else {
+    window.__litedesign_state__ = 'starting'
+
+    try {
+      mount(core, layers, stored.grid)
+    } catch (error) {
+      window.__litedesign_state__ = undefined
+      throw error
+    }
   }
 
-  window.__litedesign_state__ = 'starting'
+  if (options.focus !== undefined) window.__litedesign_set_focus__?.(options.focus)
 
-  try {
-    mount(core, layers)
-  } catch (error) {
-    window.__litedesign_state__ = undefined
-    throw error
+  return {
+    enabled: overlayHost() !== undefined,
+    layers,
+    focus: window.__litedesign_focus_selector__?.() ?? null,
   }
-
-  return { enabled: overlayHost() !== undefined, layers }
 }
 
-function mount(core: Core, initial: LayerName[]): void {
+function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void {
   // `document.body` can be missing if the user clicks before parsing finishes;
   // documentElement is always there and catches the body once it appears.
   const root = document.body ?? document.documentElement
 
   let layers = initial
+  let grid = initialGrid
   let graph: Graph = core.buildGraph(root)
   let handle: OverlayHandle | undefined
   let observer: Observer | undefined
+  let focusSelector: string | null = null
+  let focusId: string | null = null
+  let labels: Label[] = []
+  let labelMode = false
   let toolbar: Toolbar
 
   const teardown = (): void => {
@@ -97,14 +111,28 @@ function mount(core: Core, initial: LayerName[]): void {
     handle = undefined
     observer = undefined
     mountedHost = undefined
+    focusSelector = null
+    focusId = null
+    if (labelMode) document.removeEventListener('click', onLabelClick, true)
+    labelMode = false
     window.__litedesign_teardown__ = undefined
     window.__litedesign_layers__ = undefined
+    window.__litedesign_set_focus__ = undefined
+    window.__litedesign_focus_selector__ = undefined
     window.__litedesign_state__ = undefined
-    void saveState({ enabled: false, layers })
+    void saveState({ enabled: false, layers, focus: null, grid })
   }
 
   const refresh = (): void => {
     graph = core.buildGraph(root)
+
+    // The edit that triggered this refresh may have removed the focused node.
+    if (focusId !== null && !graph.nodes.some((node) => node.id === focusId)) {
+      focusSelector = null
+      focusId = null
+      handle?.setFocus(null)
+    }
+
     handle?.update(graph)
     toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
   }
@@ -113,30 +141,155 @@ function mount(core: Core, initial: LayerName[]): void {
     layers = next
     handle?.setLayers(layers)
     toolbar.setLayers(layers)
-    void saveState({ enabled: true, layers })
+    void saveState({ enabled: true, layers, focus: focusSelector, grid })
+  }
+
+  const setGrid = (next: GridConfig): void => {
+    grid = next
+    handle?.setGrid(grid)
+    toolbar.setGrid(grid)
+    void saveState({ enabled: true, layers, focus: focusSelector, grid })
+  }
+
+  /**
+   * Spotlight one component: dim the rest, outline the target, scroll it into
+   * view. A focus that cannot resolve is never fatal — the overlay stays up
+   * and the tool reports `focus: null` as the reading.
+   */
+  const setFocus = (selector: string | null): void => {
+    if (selector === null) {
+      focusSelector = null
+      focusId = null
+      handle?.setFocus(null)
+      void saveState({ enabled: true, layers, focus: null, grid })
+      return
+    }
+
+    const node = core.resolveNode(graph, selector)
+    if (node === null) {
+      focusSelector = null
+      focusId = null
+      handle?.setFocus(null)
+      void saveState({ enabled: true, layers, focus: null, grid })
+      return
+    }
+
+    focusSelector = node.selector
+    focusId = node.id
+    handle?.setFocus(node.id)
+
+    let element: Element | null = null
+    try {
+      element = document.querySelector(node.selector)
+    } catch {
+      element = null
+    }
+    // Shadow-root targets still get their spotlight drawn from the graph; only
+    // the scroll is skipped, because querySelector cannot reach inside.
+    element?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+
+    void saveState({ enabled: true, layers, focus: focusSelector, grid })
+  }
+
+  const applyMarks = (): void => {
+    handle?.setMarks(labels.map((label) => ({ selector: label.selector, text: label.text })))
+  }
+
+  /**
+   * While marking, one click on the page is captured: a labeled element loses
+   * its label, an unlabeled one asks for a name. Clicks on the overlay itself
+   * (toolbar included) arrive retargeted to the closed host and pass through.
+   */
+  const onLabelClick = (event: MouseEvent): void => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    if (target === handle?.host) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const selector = core.pathOf(target)
+    const existing = labels.find((label) => label.selector === selector)
+
+    if (existing !== undefined) {
+      // A labeled element opens the popup in rename mode: Enter renames, ×
+      // removes — instant deletion on a stray click is too easy to trigger.
+      toolbar.askLabel(
+        target.getBoundingClientRect(),
+        existing.text,
+        (text) => {
+          const trimmed = text.trim()
+          if (trimmed === '' || trimmed === existing.text) return
+
+          void renameLabel(existing.id, trimmed).then((next) => {
+            labels = next
+            applyMarks()
+          })
+        },
+        () => {
+          void removeLabel(existing.id).then((next) => {
+            labels = next
+            applyMarks()
+          })
+        },
+      )
+      return
+    }
+
+    toolbar.askLabel(target.getBoundingClientRect(), '', (text) => {
+      const trimmed = text.trim()
+      if (trimmed === '') return
+
+      void addLabel(trimmed, selector).then((next) => {
+        labels = next
+        applyMarks()
+      })
+    })
+  }
+
+  const toggleLabelMode = (): void => {
+    labelMode = !labelMode
+    toolbar.setLabelMode(labelMode)
+
+    if (labelMode) {
+      document.addEventListener('click', onLabelClick, true)
+    } else {
+      document.removeEventListener('click', onLabelClick, true)
+    }
   }
 
   toolbar = createToolbar({
     layers,
+    grid,
     onToggle(layer, enabled): void {
       setLayers(
         enabled ? [...new Set([...layers, layer])] : layers.filter((name) => name !== layer),
       )
     },
+    onLabelToggle: toggleLabelMode,
+    onGrid: setGrid,
     onClose: teardown,
   })
 
   toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
 
-  handle = core.render(graph, { layers, toolbar: toolbar.element })
+  handle = core.render(graph, { layers, toolbar: toolbar.element, grid })
   observer = observeChanges({ root, onChange: refresh })
+
+  // Labels survive a reload in storage; the badges come back with the overlay.
+  void loadLabels().then((next) => {
+    labels = next
+    applyMarks()
+  })
 
   mountedHost = handle.host
   window.__litedesign_layers__ = setLayers
+  window.__litedesign_set_focus__ = setFocus
+  window.__litedesign_focus_selector__ = () => focusSelector
   window.__litedesign_teardown__ = teardown
   window.__litedesign_state__ = 'active'
 
   // A reload has to know the overlay was on, otherwise the next page load
   // starts clean and the grid vanishes on every save.
-  void saveState({ enabled: true, layers })
+  void saveState({ enabled: true, layers, focus: focusSelector, grid })
 }

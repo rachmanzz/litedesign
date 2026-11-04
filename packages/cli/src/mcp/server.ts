@@ -10,6 +10,7 @@ import { closeSession } from './session.js'
 import { awaitPageTool } from './tools/await-page.js'
 import { findIssuesTool } from './tools/find-issues.js'
 import { inspectTool } from './tools/inspect.js'
+import { labelsTool } from './tools/labels.js'
 import { measureTool } from './tools/measure.js'
 import { overlayTool } from './tools/overlay.js'
 import { screenshotTool } from './tools/screenshot.js'
@@ -140,7 +141,7 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Find issues',
       description:
-        'Run the rule engine on the open page and return violations with selector, actual, expected, severity, and autoFix. Call inspect first.',
+        'Run layout rules on the open page and return findings. Each finding carries kind: "violation" is a measured fact (overflow, contrast below WCAG); "candidate" is a heuristic judgment (spacing scale, near-miss alignment, radius consistency) that can be a false positive — verify it with measure before changing code. Call inspect first.',
       inputSchema: {
         rules: z
           .array(z.string())
@@ -163,16 +164,33 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Overlay',
       description:
-        'Show or hide the measurement overlay in the page the human is looking at: grid, guides, gap labels, and issue boxes. Use it to let the human see spacing without clicking anything. Call inspect first.',
+        'Show or hide the measurement overlay in the page the human is looking at: grid, guides, gap labels, and issue boxes. Use focus to spotlight the component you are editing: the rest of the page dims, the target is outlined, and it scrolls to the viewport center — so the human sees exactly what you are changing. focus takes the same selector measure returns; null clears it. Set layers once at the start if you need specific ones; after that call with focus only — the human owns the layer toggles in the toolbar, and your calls must not override their choice. Call inspect first.',
       inputSchema: {
         enabled: z.boolean().optional().describe('false hides the overlay (default true)'),
         layers: z
           .array(z.string())
           .optional()
           .describe(`Layers to draw. Default: all. Valid: ${LAYERS.join(', ')}`),
+        focus: z
+          .string()
+          .nullish()
+          .describe(
+            'Selector of the component to spotlight (same format as measure). null clears the focus. Omit to leave it unchanged. Focusing scrolls the page, which changes what a later screenshot captures.',
+          ),
       },
     },
     async (input) => guard(() => overlayTool(input)),
+  )
+
+  server.registerTool(
+    'labels',
+    {
+      title: 'Labels',
+      description:
+        "Read the names the human pinned onto parts of the page through the toolbar label button. Each entry maps a human name to a selector you can pass to measure, find_issues, or overlay focus. When the human refers to a part by name, look it up here instead of guessing a selector. Labels are the human's marks: read-only for you. Returns an empty list when nothing is pinned yet.",
+      inputSchema: {},
+    },
+    async () => guard(() => labelsTool()),
   )
 
   server.registerTool(

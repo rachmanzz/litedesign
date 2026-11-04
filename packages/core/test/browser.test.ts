@@ -155,4 +155,59 @@ suite('browser geometry', () => {
 
     expect(after).toEqual(before)
   })
+
+  it('focuses a node, survives a stale focus, and never shifts layout', async () => {
+    if (browser === undefined) throw new Error('browser not started')
+
+    const page = await browser.newPage()
+    await page.goto(`file://${path.join(root, 'fixtures', 'three-column.html')}`)
+    await page.addScriptTag({ path: dist })
+
+    const result = await page.evaluate(() => {
+      type Node = { id: string; parent: string | null }
+      type Handle = {
+        setFocus(id: string | null): void
+        update(graph: unknown): void
+        destroy(): void
+      }
+      const core = (
+        window as unknown as {
+          __litedesign: {
+            buildGraph: (root: Element) => { nodes: Node[] }
+            render: (graph: unknown) => Handle
+          }
+        }
+      ).__litedesign
+
+      const size = () => ({
+        w: document.documentElement.scrollWidth,
+        h: document.documentElement.scrollHeight,
+      })
+      const before = size()
+
+      const graph = core.buildGraph(document.body)
+      const target = graph.nodes.find((node) => node.parent !== null)
+      if (target === undefined) return null
+
+      const handle = core.render(graph)
+      handle.setFocus(target.id)
+      const focused = size()
+
+      // The edit that removed the focused node must release the focus.
+      const reduced = { ...graph, nodes: graph.nodes.filter((node) => node.id !== target.id) }
+      handle.update(reduced)
+      handle.setFocus(null)
+      const after = size()
+      handle.destroy()
+
+      return {
+        focused: focused.w === before.w && focused.h === before.h,
+        stable: after.w === before.w && after.h === before.h,
+      }
+    })
+
+    await page.close()
+
+    expect(result).toEqual({ focused: true, stable: true })
+  })
 })

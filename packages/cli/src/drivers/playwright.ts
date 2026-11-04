@@ -8,6 +8,7 @@ import { ToolError } from '../mcp/errors.js'
 import type {
   AnnotateOptions,
   Driver,
+  LabelMark,
   MeasureResult,
   OverlayOptions,
   OverlayResult,
@@ -184,34 +185,71 @@ export class PlaywrightDriver implements Driver {
     return page.screenshot({ type: 'png' })
   }
 
+  /**
+   * Labels are marks the human makes through the toolbar; a headless page has
+   * no human in it, so there is nothing to read.
+   */
+  async labels(): Promise<LabelMark[]> {
+    return []
+  }
+
   async overlay(options: OverlayOptions): Promise<OverlayResult> {
     const page = await this.#requirePage()
     await this.#inject(page)
 
     const layers = options.enabled ? (options.layers ?? [...LAYERS]) : []
 
-    await page.evaluate(
+    const result = await page.evaluate(
       (input) => {
+        type Handle = { destroy(): void; setFocus(id: string | null): void }
+        type Node = { id: string; selector: string }
         const target = window as unknown as {
           __litedesign: {
             buildGraph: (root: Element) => Graph
-            render: (graph: Graph, options: { layers: string[] }) => { destroy(): void }
+            resolveNode: (graph: Graph, selector: string) => Node | null
+            render: (graph: Graph, options: { layers: string[] }) => Handle
           }
-          __litedesign_handle__?: { destroy(): void }
+          __litedesign_handle__?: Handle
+          __litedesign_focus__?: string | null
         }
 
         target.__litedesign_handle__?.destroy()
         target.__litedesign_handle__ = undefined
 
-        if (!input.enabled) return
+        if (!input.enabled) {
+          target.__litedesign_focus__ = null
+          return { enabled: false, layers: [], focus: null }
+        }
 
         const graph = target.__litedesign.buildGraph(document.body)
-        target.__litedesign_handle__ = target.__litedesign.render(graph, { layers: input.layers })
+        const handle = target.__litedesign.render(graph, { layers: input.layers })
+        target.__litedesign_handle__ = handle
+
+        // The handle is remounted on every call, so the focus the agent left
+        // set is remembered here and re-applied to the fresh handle.
+        if (input.focus !== undefined) target.__litedesign_focus__ = input.focus
+
+        let focus: string | null = null
+        const wanted =
+          input.focus !== undefined ? input.focus : (target.__litedesign_focus__ ?? null)
+
+        if (wanted !== null) {
+          const node = target.__litedesign.resolveNode(graph, wanted)
+          if (node !== null) {
+            handle.setFocus(node.id)
+            focus = node.selector
+
+            const element = document.querySelector(node.selector)
+            element?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+          }
+        }
+
+        return { enabled: true, layers: input.layers, focus }
       },
-      { enabled: options.enabled, layers },
+      { enabled: options.enabled, layers, focus: options.focus },
     )
 
-    return { enabled: options.enabled, layers }
+    return result
   }
 
   async close(): Promise<void> {

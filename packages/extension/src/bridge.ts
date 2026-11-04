@@ -1,4 +1,5 @@
 import { applyOverlay, boot, overlayHost } from './boot.js'
+import { loadLabels } from './labels.js'
 import type { Core, Graph, LayerName, OverlayHandle } from './types.js'
 
 type Payload = {
@@ -7,6 +8,7 @@ type Payload = {
   layers?: LayerName[]
   fullPage?: boolean
   enabled?: boolean
+  focus?: string | null
 }
 
 type Rect = { x: number; y: number; w: number; h: number }
@@ -71,8 +73,11 @@ async function respond(core: Core, raw: unknown): Promise<Response> {
         result: await applyOverlay(core, {
           enabled: payload.enabled !== false,
           layers: payload.layers,
+          focus: payload.focus,
         }),
       }
+    case 'labels':
+      return { ok: true, result: { labels: await loadLabels() } }
     case 'graph':
       return { ok: true, result: core.buildGraph(root()) }
     case 'measure':

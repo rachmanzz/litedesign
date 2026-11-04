@@ -21,5 +21,5 @@ async function restore(core: Core): Promise<void> {
   const state = await loadState()
   if (!state.enabled) return
 
-  await applyOverlay(core, { enabled: true, layers: state.layers })
+  await applyOverlay(core, { enabled: true, layers: state.layers, focus: state.focus })
 }

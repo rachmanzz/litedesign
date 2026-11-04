@@ -315,6 +315,7 @@ async function route(action: string, payload: unknown): Promise<unknown> {
     case 'graph':
     case 'measure':
     case 'overlay':
+    case 'labels':
       return toTab(action, payload)
     case 'screenshot':
       return capture('screenshot_prepare', payload)

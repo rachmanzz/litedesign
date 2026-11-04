@@ -1,27 +1,46 @@
-import { OVERLAY_HOST_ID } from '../constants.js'
+import { GRID_STEP, OVERLAY_HOST_ID } from '../constants.js'
 import type { Graph, GraphNode } from '../types.js'
 import { pathOf } from '../walk.js'
 import {
   createLayers,
+  createSubLayer,
+  drawDim,
+  drawFocus,
   drawGaps,
   drawGrid,
   drawGuides,
   drawHover,
   drawIssues,
+  drawMarks,
+  drawRadius,
+  type GridConfig,
   LAYERS,
   type LayerName,
+  type MarkInput,
 } from './layers.js'
+
+export type { GridConfig, MarkInput } from './layers.js'
 
 export type OverlayOptions = {
   layers?: LayerName[]
   /** Extension UI, appended above the layers inside the same shadow root. */
   toolbar?: HTMLElement
+  /** Badges the human pinned onto parts of the page; drawn above the dim. */
+  marks?: MarkInput[]
+  /** How the grid layer draws itself. Default: 8px, both axes. */
+  grid?: GridConfig
 }
 
 export type OverlayHandle = {
   host: HTMLElement
   update(graph: Graph): void
   setLayers(names: LayerName[]): void
+  /** Spotlight one node (structural id) or clear the spotlight with null. */
+  setFocus(id: string | null): void
+  /** Replaces the pinned badges without remounting. */
+  setMarks(marks: MarkInput[]): void
+  /** Replaces the grid configuration without remounting. */
+  setGrid(grid: GridConfig): void
   destroy(): void
 }
 
@@ -46,6 +65,8 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
   shadow.append(printStyle)
 
   const layers = createLayers(shadow)
+  const radiusLayer = createSubLayer('radius', layers.hover)
+  const marksLayer = createSubLayer('marks', layers.hover)
 
   if (options.toolbar !== undefined) shadow.append(options.toolbar)
 
@@ -56,7 +77,10 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
   let hovered: string | null = null
   let hoverTarget: Element | null = null
   let hoverFrame = 0
+  let focusId: string | null = null
   let visible = new Set<LayerName>(options.layers ?? LAYERS)
+  let marks: MarkInput[] = options.marks ?? []
+  let grid: GridConfig = options.grid ?? { step: GRID_STEP, axis: 'both' }
   let frame = 0
 
   const draw = (): void => {
@@ -66,10 +90,21 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
       layers[name].style.display = visible.has(name) ? 'block' : 'none'
     }
 
-    drawGrid(layers.grid)
-    drawGuides(layers.guide, current)
+    drawGrid(layers.grid, grid)
     drawGaps(layers.gap, current)
     drawIssues(layers.issue, current)
+    // Guide focus follows the focus state, not the layer toggles: where the
+    // guides point is about what is being edited, independent of how it looks.
+    const focused = focusId === null ? null : (byId.get(focusId) ?? null)
+    drawGuides(layers.guide, current, focused)
+    // Two display decisions over that one state: outline and radius follow
+    // the focus toggle, the darkness follows the dim toggle.
+    const outlineNode = visible.has('focus') ? focused : null
+    const dimNode = visible.has('dim') ? focused : null
+    drawDim(layers.dim, dimNode)
+    drawFocus(layers.focus, outlineNode)
+    drawRadius(radiusLayer, outlineNode)
+    drawMarks(marksLayer, marks, new Map(current.nodes.map((node) => [node.selector, node])))
     drawHover(layers.hover, hovered === null ? null : (byId.get(hovered) ?? null))
   }
 
@@ -127,10 +162,25 @@ export function render(graph: Graph, options: OverlayOptions = {}): OverlayHandl
     update(next: Graph): void {
       current = next
       byId = indexNodes(next)
+      // The edit that refreshed this graph may have removed the focused node.
+      // A stale focus must never leave a dim with no hole in it.
+      if (focusId !== null && !byId.has(focusId)) focusId = null
       draw()
     },
     setLayers(names: LayerName[]): void {
       visible = new Set(names)
+      draw()
+    },
+    setFocus(id: string | null): void {
+      focusId = id
+      draw()
+    },
+    setMarks(next: MarkInput[]): void {
+      marks = next
+      draw()
+    },
+    setGrid(next: GridConfig): void {
+      grid = next
       draw()
     },
     destroy(): void {

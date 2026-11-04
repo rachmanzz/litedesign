@@ -1,17 +1,25 @@
-import { LAYERS, type LayerName } from './types.js'
+import { GRID_STEPS, type GridConfig, LAYERS, type LayerName } from './types.js'
 
 const STORAGE_KEY = 'litedesign'
 
 const DEFAULT_LAYERS: LayerName[] = [...LAYERS]
 
+/** What the human chose for the grid: distance between the lines and axis. */
+export const DEFAULT_GRID: GridConfig = { step: 8, axis: 'both' }
+
+const AXES = ['vertical', 'horizontal', 'both']
+
 /**
- * What survives a reload: whether the overlay was on, and which layers it
- * showed. The fixture server reloads the page on every save, so without this
- * the grid disappears each time a file changes.
+ * What survives a reload: whether the overlay was on, which layers it showed,
+ * and which component the agent was focusing. The fixture server reloads the
+ * page on every save, so without this the grid disappears each time a file
+ * changes — and the focus would vanish exactly while the agent is editing.
  */
 export type OverlayState = {
   enabled: boolean
   layers: LayerName[]
+  focus: string | null
+  grid: GridConfig
 }
 
 export function defaultLayers(): LayerName[] {
@@ -19,7 +27,8 @@ export function defaultLayers(): LayerName[] {
 }
 
 export async function loadState(): Promise<OverlayState> {
-  if (!hasStorage()) return { enabled: false, layers: defaultLayers() }
+  if (!hasStorage())
+    return { enabled: false, layers: defaultLayers(), focus: null, grid: DEFAULT_GRID }
 
   try {
     const stored = await chrome.storage.local.get(STORAGE_KEY)
@@ -28,7 +37,7 @@ export async function loadState(): Promise<OverlayState> {
     // Preferences are a convenience; a storage failure must not hide the
     // overlay. The user sees defaults instead.
     console.warn('[litedesign] could not read preferences', error)
-    return { enabled: false, layers: defaultLayers() }
+    return { enabled: false, layers: defaultLayers(), focus: null, grid: DEFAULT_GRID }
   }
 }
 
@@ -49,15 +58,35 @@ function hasStorage(): boolean {
 
 function parseState(value: unknown): OverlayState {
   if (typeof value !== 'object' || value === null) {
-    return { enabled: false, layers: defaultLayers() }
+    return { enabled: false, layers: defaultLayers(), focus: null, grid: DEFAULT_GRID }
   }
 
-  const record = value as { enabled?: unknown; layers?: unknown }
+  const record = value as {
+    enabled?: unknown
+    layers?: unknown
+    focus?: unknown
+    grid?: unknown
+  }
 
   return {
     // A value written before this flag existed means "not known to be on".
     enabled: record.enabled === true,
     layers: parseLayers(record.layers),
+    focus: typeof record.focus === 'string' && record.focus !== '' ? record.focus : null,
+    grid: parseGrid(record.grid),
+  }
+}
+
+function parseGrid(value: unknown): GridConfig {
+  if (typeof value !== 'object' || value === null) return DEFAULT_GRID
+
+  const record = value as { step?: unknown; axis?: unknown }
+
+  return {
+    step: GRID_STEPS.includes(record.step as never) ? (record.step as number) : DEFAULT_GRID.step,
+    axis: AXES.includes(record.axis as never)
+      ? (record.axis as GridConfig['axis'])
+      : DEFAULT_GRID.axis,
   }
 }
 
