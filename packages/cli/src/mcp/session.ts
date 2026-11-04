@@ -1,12 +1,18 @@
 import type { Mode } from '../config.js'
 import { selectDriver } from '../drivers/index.js'
-import type { Driver, Viewport } from '../drivers/types.js'
+import type { Driver, Viewport, WaitResult } from '../drivers/types.js'
 import { ToolError } from './errors.js'
 
 type Session = {
   driver: Driver
   url: string
+  ready: boolean
 }
+
+export type SessionWait =
+  | { status: 'ready'; url: string; expected: string }
+  | { status: 'timeout'; expected: string }
+  | { status: 'mismatch'; url: string; expected: string }
 
 /**
  * One process serves one agent session, so one open page is enough. Keeping it
@@ -14,29 +20,48 @@ type Session = {
  */
 let session: Session | null = null
 
-export async function openPage(
-  mode: Mode,
-  url: string,
-  viewport?: Viewport,
-): Promise<Driver | null> {
+export async function openPage(mode: Mode, url: string, viewport?: Viewport): Promise<Driver> {
   if (session === null) {
-    const driver = await selectDriver(mode)
-    if (driver === null) return null
-
-    session = { driver, url: '' }
+    session = { driver: await selectDriver(mode), url, ready: false }
   }
 
-  await session.driver.open(url, viewport)
   session.url = url
+  await session.driver.open(url, viewport)
+  session.ready = true
+
   return session.driver
 }
 
 export function requirePage(): Driver {
-  if (session === null || session.url === '') {
+  if (session === null || !session.ready) {
     throw new ToolError('no page is open. Call inspect with a url first')
   }
 
   return session.driver
+}
+
+export async function waitForPage(timeoutMs: number): Promise<SessionWait> {
+  if (session === null || session.url === '') {
+    throw new ToolError('no page is requested. Call inspect with a url first')
+  }
+
+  const expected = session.url
+  const driver = session.driver
+
+  if (driver.waitForPage === undefined) {
+    return { status: 'ready', url: expected, expected }
+  }
+
+  const result: WaitResult = await driver.waitForPage(expected, timeoutMs)
+
+  if (result.status === 'ready') {
+    session.ready = true
+    return { status: 'ready', url: result.url, expected }
+  }
+
+  if (result.status === 'timeout') return { status: 'timeout', expected }
+
+  return { status: 'mismatch', url: result.url, expected }
 }
 
 export async function closeSession(): Promise<void> {

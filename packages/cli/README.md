@@ -43,8 +43,9 @@ litedesign mcp                # MCP server (stdio)
 
 | Tool                   | What it returns                                           |
 | ---------------------- | --------------------------------------------------------- |
-| `capabilities`         | version, drivers, mode, valid rule names                  |
+| `capabilities`         | version, drivers, mode, connected pages, valid rules      |
 | `inspect`              | tree summary + screenshot; opens the page                 |
+| `await_page`           | wait for the page from `inspect` to connect               |
 | `measure`              | box model, computed styles, gaps for one selector         |
 | `find_issues`          | rule violations with selector, actual, expected, severity |
 | `screenshot`           | PNG of the viewport or one element                        |
@@ -58,10 +59,15 @@ The server prefers Playwright when `playwright-core` is installed. It launches
 the Chrome you already use, so no browser download is required.
 
 Without Playwright, `inspect` returns `awaiting_user` with copy-pasteable
-instructions. The extension bridge (`await_page`) is the next milestone.
+instructions. Call `await_page` and the server waits for the extension to
+connect. A timeout or a different URL comes back as a status, not an error.
+
+The extension captures the visible viewport only. Full-page screenshots need
+Playwright.
 
 ## Status
 
-M3a — the Playwright path is complete: inspect, measure, find issues, plain
-screenshots, and annotated screenshots. The WebSocket hub and the extension
-driver follow in M3b.
+M3b — both drivers are complete. Playwright opens pages by itself; the
+extension drives the tab you already have open through a local WebSocket hub.
+The extension can measure, capture the viewport, crop one element, and annotate
+with the same overlay.

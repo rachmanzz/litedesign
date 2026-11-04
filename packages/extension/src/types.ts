@@ -1,6 +1,6 @@
-import type { Graph, LayerName, OverlayHandle, OverlayOptions } from '@litedesign/core'
+import type { Graph, GraphNode, LayerName, OverlayHandle, OverlayOptions } from '@litedesign/core'
 
-export type { Graph, LayerName, OverlayHandle }
+export type { Graph, GraphNode, LayerName, OverlayHandle }
 
 /**
  * The injected core is a global, not an import. This interface is the only
@@ -9,6 +9,7 @@ export type { Graph, LayerName, OverlayHandle }
  */
 export type Core = {
   buildGraph(root?: Element | null): Graph
+  resolveNode(graph: Graph, selector: string): GraphNode | null
   render(graph: Graph, options?: OverlayOptions): OverlayHandle
   VERSION: string
 }
@@ -38,5 +39,9 @@ declare global {
     __litedesign?: Core
     __litedesign_state__?: 'starting' | 'active'
     __litedesign_teardown__?: () => void
+    /** True once the content-script bridge is listening. */
+    __litedesign_bridge__?: boolean
+    /** Toggle the user overlay. The service worker sends `toggle` here. */
+    __litedesign_toggle__?: () => void
   }
 }

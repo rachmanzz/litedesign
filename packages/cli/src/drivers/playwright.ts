@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Graph, Issue } from '@litedesign/core/types'
+import type { Graph, GraphNode, Issue } from '@litedesign/core/types'
 import type { Browser, BrowserContext, LaunchOptions, Page } from 'playwright-core'
 import { ToolError } from '../mcp/errors.js'
 import type { AnnotateOptions, Driver, MeasureResult, ShotOptions, Viewport } from './types.js'
@@ -70,30 +70,15 @@ export class PlaywrightDriver implements Driver {
         window as unknown as {
           __litedesign: {
             buildGraph: (root: Element) => Graph
-            pathOf: (element: Element) => string
+            resolveNode: (graph: Graph, selector: string) => GraphNode | null
           }
         }
       ).__litedesign
 
       const graph = core.buildGraph(document.body)
-      let node = graph.nodes.find((item) => item.id === target)
+      const node = core.resolveNode(graph, target)
 
-      if (node === undefined) {
-        let element: Element | null = null
-
-        try {
-          element = document.querySelector(target)
-        } catch {
-          element = null
-        }
-
-        if (element !== null) {
-          const id = core.pathOf(element)
-          node = graph.nodes.find((item) => item.id === id)
-        }
-      }
-
-      if (node === undefined) return null
+      if (node === null) return null
 
       const id = node.id
       const gaps = graph.gaps

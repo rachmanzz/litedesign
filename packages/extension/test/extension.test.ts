@@ -122,6 +122,8 @@ suite('extension lifecycle', () => {
   async function mount(page: Page): Promise<void> {
     await page.addScriptTag({ path: coreDist })
     await page.addScriptTag({ path: contentDist })
+    // The service worker sends `toggle` after injecting; the test does the same.
+    await page.evaluate(() => window.__litedesign_toggle__?.())
     await page.waitForFunction(() => window.__litedesign_state__ === 'active')
   }
 
@@ -194,11 +196,14 @@ suite('extension lifecycle', () => {
 
     await mount(page)
 
+    // Re-injection alone does not toggle; the service worker sends `toggle`.
     await page.addScriptTag({ path: contentDist })
+    await page.evaluate(() => window.__litedesign_toggle__?.())
     await page.waitForFunction(() => window.__litedesign_state__ === undefined)
     expect(await page.locator('#__litedesign_overlay__').count()).toBe(0)
 
     await page.addScriptTag({ path: contentDist })
+    await page.evaluate(() => window.__litedesign_toggle__?.())
     await page.waitForFunction(() => window.__litedesign_state__ === 'active')
     expect(await page.locator('#__litedesign_overlay__').count()).toBe(1)
 

@@ -1,5 +1,7 @@
 import type { Mode } from '../config.js'
+import { getHub, getHubError } from '../hub.js'
 import { ToolError } from '../mcp/errors.js'
+import { ExtensionDriver } from './extension.js'
 import { PlaywrightDriver } from './playwright.js'
 import type { Driver } from './types.js'
 
@@ -19,11 +21,12 @@ export async function detectPlaywright(): Promise<boolean> {
 }
 
 /**
- * Returns `null` when the extension driver should handle the request. In M3a
- * that only happens without Playwright; M3b adds the WebSocket driver.
+ * Picks the driver once per session. Playwright wins in `auto` because it can
+ * open a page without asking the human; the extension is the fallback when no
+ * browser automation library is installed.
  */
-export async function selectDriver(mode: Mode): Promise<Driver | null> {
-  if (mode === 'extension') return null
+export async function selectDriver(mode: Mode): Promise<Driver> {
+  if (mode === 'extension') return extensionDriver()
 
   const playwright = await loadPlaywright()
   if (playwright !== null) return new PlaywrightDriver(playwright)
@@ -34,5 +37,18 @@ export async function selectDriver(mode: Mode): Promise<Driver | null> {
     )
   }
 
-  return null
+  return extensionDriver()
+}
+
+function extensionDriver(): Driver {
+  const hub = getHub()
+
+  if (hub === null) {
+    const reason = getHubError() ?? 'the WebSocket hub is not running'
+    throw new ToolError(
+      `the extension bridge is unavailable: ${reason}. Free the port, or install Playwright.`,
+    )
+  }
+
+  return new ExtensionDriver(hub)
 }

@@ -1,0 +1,89 @@
+import type { Graph, Issue } from '@litedesign/core/types'
+import type { Hub, HubPage } from '../hub.js'
+import { AwaitingUserError, ToolError } from '../mcp/errors.js'
+import type { AnnotateOptions, Driver, MeasureResult, ShotOptions, WaitResult } from './types.js'
+
+type ShotPayload = { data: string }
+
+/**
+ * Drives the page the user already has open. The extension owns the tab, so
+ * this driver never opens, navigates, or closes anything.
+ */
+export class ExtensionDriver implements Driver {
+  readonly #hub: Hub
+  #target: string | undefined
+
+  constructor(hub: Hub) {
+    this.#hub = hub
+  }
+
+  async open(url: string): Promise<void> {
+    this.#target = url
+
+    if (this.#hub.find(url) === undefined) throw new AwaitingUserError(url)
+  }
+
+  async waitForPage(url: string, timeoutMs: number): Promise<WaitResult> {
+    const outcome = await this.#hub.waitForPage(url, timeoutMs)
+
+    if (outcome.status === 'timeout') return { status: 'timeout' }
+    if (outcome.status === 'mismatch') return { status: 'mismatch', url: outcome.page.url }
+
+    this.#target = outcome.page.url
+    return { status: 'ready', url: outcome.page.url }
+  }
+
+  async graph(): Promise<Graph> {
+    return this.#request<Graph>('graph')
+  }
+
+  async issues(rules?: string[]): Promise<Issue[]> {
+    const graph = await this.graph()
+    if (rules === undefined || rules.length === 0) return graph.issues
+
+    const wanted = new Set(rules)
+    return graph.issues.filter((issue) => wanted.has(issue.rule))
+  }
+
+  async measure(selector: string): Promise<MeasureResult> {
+    return this.#request<MeasureResult>('measure', { selector })
+  }
+
+  async screenshot(options: ShotOptions = {}): Promise<Buffer> {
+    return decode(await this.#request<ShotPayload>('screenshot', options))
+  }
+
+  async annotate(options: AnnotateOptions = {}): Promise<Buffer> {
+    return decode(await this.#request<ShotPayload>('annotate', options))
+  }
+
+  async close(): Promise<void> {
+    // The page belongs to the user. Closing it would be hostile.
+  }
+
+  #request<T>(action: string, payload?: unknown): Promise<T> {
+    const page = this.#require()
+    return this.#hub.request<T>(page.tabId, action, payload)
+  }
+
+  #require(): HubPage {
+    if (this.#target === undefined) {
+      throw new ToolError('no page is open. Call inspect with a url first')
+    }
+
+    const page = this.#hub.find(this.#target)
+    if (page === undefined) {
+      throw new ToolError('the page is no longer connected. Click the litedesign icon again.')
+    }
+
+    return page
+  }
+}
+
+function decode(payload: ShotPayload): Buffer {
+  if (typeof payload?.data !== 'string' || payload.data === '') {
+    throw new ToolError('the extension returned an empty screenshot')
+  }
+
+  return Buffer.from(payload.data, 'base64')
+}

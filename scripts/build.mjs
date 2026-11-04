@@ -57,6 +57,7 @@ async function buildExtension() {
     at('packages/extension/public/manifest.json'),
     at('packages/extension/dist/manifest.json'),
   )
+  await cp(at('packages/extension/public/config.json'), at('packages/extension/dist/config.json'))
   await cp(at('packages/core/dist/core.iife.js'), at('packages/extension/dist/core.iife.js'))
 }
 
@@ -73,6 +74,7 @@ async function buildCli() {
       '@modelcontextprotocol/sdk/*',
       'playwright',
       'playwright-core',
+      'ws',
       'zod',
     ],
   })

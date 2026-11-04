@@ -4,7 +4,7 @@ import { extractNode } from './extract.js'
 import { findGaps } from './gaps.js'
 import { findIssues } from './rules/index.js'
 import type { Graph, GraphNode } from './types.js'
-import { collectElements } from './walk.js'
+import { collectElements, pathOf } from './walk.js'
 
 /**
  * Turns the live page into a measurement graph.
@@ -48,6 +48,33 @@ export function buildGraph(root: Element | null = null): Graph {
   graph.issues = findIssues(graph)
 
   return graph
+}
+
+/**
+ * Resolves a structural path or a CSS selector to one node in the graph.
+ *
+ * Structural paths are matched first because they are what `find_issues`
+ * returns. Anything else is handed to `document.querySelector` and converted
+ * back to a structural path, so both drivers accept the same selectors.
+ */
+export function resolveNode(graph: Graph, selector: string): GraphNode | null {
+  const direct = graph.nodes.find((node) => node.id === selector)
+  if (direct !== undefined) return direct
+
+  if (typeof document === 'undefined') return null
+
+  let element: Element | null = null
+
+  try {
+    element = document.querySelector(selector)
+  } catch {
+    return null
+  }
+
+  if (element === null) return null
+
+  const id = pathOf(element)
+  return graph.nodes.find((node) => node.id === id) ?? null
 }
 
 function emptyGraph(): Graph {

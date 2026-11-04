@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs'
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { cp, mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readConfig } from '../config.js'
 import { BUNDLED_EXTENSION, CONFIG, DEFAULT_PORT, EXT_DIR, HOME } from '../paths.js'
 
 export async function setup(): Promise<void> {
@@ -25,7 +27,15 @@ export async function setup(): Promise<void> {
     configCreated = true
   }
 
-  const config = JSON.parse(await readFile(CONFIG, 'utf8')) as { port?: number; mode?: string }
+  const config = await readConfig()
+
+  // The extension reads this file to find the hub. It is written after the copy
+  // so `extension update` never resets a custom port.
+  await writeFile(
+    path.join(EXT_DIR, 'config.json'),
+    `${JSON.stringify({ port: config.port }, null, 2)}\n`,
+    'utf8',
+  )
 
   console.log(`
   litedesign setup
@@ -51,6 +61,6 @@ export async function setup(): Promise<void> {
     }
   }
 
-  port ${config.port ?? DEFAULT_PORT} · mode ${config.mode ?? 'auto'}
+  port ${config.port} · mode ${config.mode}
 `)
 }

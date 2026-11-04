@@ -29,6 +29,11 @@ export type MeasureResult = {
   gaps: MeasuredGap[]
 }
 
+export type WaitResult =
+  | { status: 'ready'; url: string }
+  | { status: 'timeout' }
+  | { status: 'mismatch'; url: string }
+
 /**
  * The tool layer never knows which driver is active. Playwright and the
  * extension bridge implement the same surface.
@@ -41,4 +46,6 @@ export type Driver = {
   screenshot(options?: ShotOptions): Promise<Buffer>
   annotate(options?: AnnotateOptions): Promise<Buffer>
   close(): Promise<void>
+  /** Extension only: block until a page with this URL connects. */
+  waitForPage?(url: string, timeoutMs: number): Promise<WaitResult>
 }

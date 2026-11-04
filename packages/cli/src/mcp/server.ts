@@ -1,10 +1,12 @@
 import { RULE_IDS } from '@litedesign/core'
 import { readConfig } from '../config.js'
 import { detectPlaywright } from '../drivers/index.js'
+import { getHub, getHubError, Hub, setHub, setHubError } from '../hub.js'
 import { VERSION } from '../version.js'
 import { ToolError } from './errors.js'
 import { errorResult, type ToolResult, textResult } from './result.js'
 import { closeSession } from './session.js'
+import { awaitPageTool } from './tools/await-page.js'
 import { findIssuesTool } from './tools/find-issues.js'
 import { inspectTool } from './tools/inspect.js'
 import { measureTool } from './tools/measure.js'
@@ -28,6 +30,18 @@ export async function runMcpServer(): Promise<void> {
   const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js')
   const { z } = await import('zod')
 
+  const config = await readConfig()
+
+  // The hub is optional: Playwright can drive the page without it. A busy port
+  // disables the extension driver instead of stopping the server.
+  try {
+    setHub(await Hub.start(config.port))
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    setHubError(reason)
+    console.error(`[litedesign] extension bridge disabled: ${reason}`)
+  }
+
   const server = new McpServer({ name: 'litedesign', version: VERSION })
 
   const viewport = z
@@ -41,18 +55,25 @@ export async function runMcpServer(): Promise<void> {
     'capabilities',
     {
       title: 'Capabilities',
-      description: 'Server version, available drivers, active mode, and valid rule names.',
+      description:
+        'Server version, available drivers, active mode, connected extension pages, and valid rule names.',
       inputSchema: {},
     },
     async () => {
-      const [playwright, config] = await Promise.all([detectPlaywright(), readConfig()])
+      const playwright = await detectPlaywright()
+      const hub = getHub()
 
       return textResult({
         version: VERSION,
-        drivers: { playwright, extension: false },
+        drivers: { playwright, extension: hub !== null },
         mode: config.mode,
         port: config.port,
         rules: RULE_IDS,
+        extension: {
+          connected: hub?.pages().length ?? 0,
+          pages: hub?.pages() ?? [],
+          error: getHubError(),
+        },
       })
     },
   )
@@ -62,7 +83,7 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Inspect page',
       description:
-        'Open a page and return a tree summary plus a screenshot. Call this before measure, find_issues, screenshot, or screenshot_annotated. Returns status "awaiting_user" when Playwright is unavailable.',
+        'Open a page and return a tree summary plus a screenshot. Call this before measure, find_issues, screenshot, or screenshot_annotated. Returns status "awaiting_user" when the extension driver needs the human to open the page.',
       inputSchema: {
         url: z.string().url(),
         viewport,
@@ -70,6 +91,25 @@ export async function runMcpServer(): Promise<void> {
       },
     },
     async (input) => guard(() => inspectTool(input)),
+  )
+
+  server.registerTool(
+    'await_page',
+    {
+      title: 'Await page',
+      description:
+        'Block until the page from the last inspect call connects through the extension. Use this after inspect returns awaiting_user. Returns ready, timeout, or mismatch; timeout is not an error.',
+      inputSchema: {
+        timeoutMs: z
+          .number()
+          .int()
+          .min(1000)
+          .max(600000)
+          .optional()
+          .describe('How long to wait in milliseconds (default 120000)'),
+      },
+    },
+    async (input) => guard(() => awaitPageTool(input)),
   )
 
   server.registerTool(
@@ -145,8 +185,16 @@ export async function runMcpServer(): Promise<void> {
     async (input) => guard(() => screenshotAnnotatedTool(input)),
   )
 
+  let closing = false
+
   const shutdown = (): void => {
-    void closeSession().finally(() => process.exit(0))
+    if (closing) return
+    closing = true
+
+    void closeSession()
+      .catch(() => undefined)
+      .finally(() => getHub()?.close())
+      .finally(() => process.exit(0))
   }
 
   process.once('SIGINT', shutdown)
