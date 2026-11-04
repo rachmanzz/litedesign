@@ -77,7 +77,18 @@ export class ExtensionDriver implements Driver {
   }
 
   async overlay(options: OverlayOptions): Promise<OverlayResult> {
-    return this.#request<OverlayResult>('overlay', options)
+    const result = await this.#request<OverlayResult | undefined>('overlay', options)
+
+    // An extension built before the overlay tool reported its result answers
+    // `{ ok: true }` with no result. Say what to do instead of crashing on
+    // `result.enabled`.
+    if (result === undefined) {
+      throw new ToolError(
+        'the extension did not report the overlay state. Reload the litedesign extension at chrome://extensions, then try again.',
+      )
+    }
+
+    return result
   }
 
   async close(): Promise<void> {

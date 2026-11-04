@@ -61,7 +61,12 @@ function open(url: string): Promise<WebSocket> {
 }
 
 async function setup(
-  options: { attachUrl?: string; announce?: boolean; connect?: boolean } = {},
+  options: {
+    attachUrl?: string
+    announce?: boolean
+    connect?: boolean
+    legacyOverlay?: boolean
+  } = {},
 ): Promise<{ hub: Hub; driver: ExtensionDriver }> {
   const hub = await Hub.start(0)
   hubs.push(hub)
@@ -86,6 +91,12 @@ async function setup(
     if (message.action === 'attach') {
       socket.send(JSON.stringify({ type: 'response', id: message.id, ok: true, result: page }))
       socket.send(JSON.stringify({ type: 'hello', ...page, version: '0.1.0' }))
+      return
+    }
+
+    // A build from before the overlay tool returned its result.
+    if (message.action === 'overlay' && options.legacyOverlay === true) {
+      socket.send(JSON.stringify({ type: 'response', id: message.id, ok: true }))
       return
     }
 
@@ -155,6 +166,15 @@ describe('ExtensionDriver', () => {
     const { driver } = await setup({ announce: false, attachUrl: 'http://other.test/' })
 
     await expect(driver.open(URL)).rejects.toBeInstanceOf(MismatchError)
+  })
+
+  it('tells the user to reload an extension that does not report the overlay state', async () => {
+    const { driver } = await setup({ legacyOverlay: true })
+    await driver.open(URL)
+
+    await expect(driver.overlay({ enabled: true })).rejects.toThrow(
+      /reload the litedesign extension/i,
+    )
   })
 
   it('asks the human when no extension is connected', async () => {
