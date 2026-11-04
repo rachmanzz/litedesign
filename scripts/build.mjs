@@ -1,8 +1,11 @@
 import { chmod, cp, rm } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
-const root = process.cwd()
+// Derived from this file's location, not the working directory: the script is
+// wired as a root script, but a rebuild from inside a package must also work.
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const at = (...segments) => path.join(root, ...segments)
 
 const shared = {
