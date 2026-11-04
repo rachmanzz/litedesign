@@ -10,6 +10,7 @@ import type {
   Driver,
   MeasureResult,
   OverlayOptions,
+  OverlayResult,
   ShotOptions,
   Viewport,
 } from './types.js'
@@ -183,9 +184,11 @@ export class PlaywrightDriver implements Driver {
     return page.screenshot({ type: 'png' })
   }
 
-  async overlay(options: OverlayOptions): Promise<void> {
+  async overlay(options: OverlayOptions): Promise<OverlayResult> {
     const page = await this.#requirePage()
     await this.#inject(page)
+
+    const layers = options.enabled ? (options.layers ?? [...LAYERS]) : []
 
     await page.evaluate(
       (input) => {
@@ -205,8 +208,10 @@ export class PlaywrightDriver implements Driver {
         const graph = target.__litedesign.buildGraph(document.body)
         target.__litedesign_handle__ = target.__litedesign.render(graph, { layers: input.layers })
       },
-      { enabled: options.enabled, layers: options.layers ?? [...LAYERS] },
+      { enabled: options.enabled, layers },
     )
+
+    return { enabled: options.enabled, layers }
   }
 
   async close(): Promise<void> {

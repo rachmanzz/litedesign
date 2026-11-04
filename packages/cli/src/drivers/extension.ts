@@ -6,6 +6,7 @@ import type {
   Driver,
   MeasureResult,
   OverlayOptions,
+  OverlayResult,
   ShotOptions,
   WaitResult,
 } from './types.js'
@@ -75,8 +76,8 @@ export class ExtensionDriver implements Driver {
     return decode(await this.#request<ShotPayload>('annotate', options))
   }
 
-  async overlay(options: OverlayOptions): Promise<void> {
-    await this.#request('overlay', options)
+  async overlay(options: OverlayOptions): Promise<OverlayResult> {
+    return this.#request<OverlayResult>('overlay', options)
   }
 
   async close(): Promise<void> {

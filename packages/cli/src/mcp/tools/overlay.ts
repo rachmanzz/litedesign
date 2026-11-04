@@ -11,17 +11,21 @@ export type OverlayInput = {
 /**
  * Shows or hides the measurement overlay in the page the human is looking at.
  * This is how the agent puts the grid on screen without asking for a click.
+ *
+ * The answer comes from the page, not from the request: the tool reports the
+ * state the page says it is in, so `shown` cannot be true while the grid is
+ * not on screen.
  */
 export async function overlayTool(input: OverlayInput): Promise<ToolResult> {
   const driver = requirePage()
   const enabled = input.enabled !== false
   const layers = parseLayers(input.layers)
 
-  await driver.overlay({ enabled, layers })
+  const result = await driver.overlay({ enabled, layers })
 
   return textResult({
-    status: enabled ? 'shown' : 'hidden',
-    layers: enabled ? (layers ?? 'current') : [],
+    status: result.enabled ? 'shown' : 'hidden',
+    layers: result.layers,
   })
 }
 

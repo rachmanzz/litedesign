@@ -9,6 +9,12 @@ export type OverlayOptions = {
   layers?: LayerName[]
 }
 
+/** What the page reports after applying an overlay change. */
+export type OverlayResult = {
+  enabled: boolean
+  layers: LayerName[]
+}
+
 export type ShotOptions = {
   selector?: string
   fullPage?: boolean
@@ -53,7 +59,7 @@ export type Driver = {
   screenshot(options?: ShotOptions): Promise<Buffer>
   annotate(options?: AnnotateOptions): Promise<Buffer>
   /** Draw or clear the overlay in the page the human is looking at. */
-  overlay(options: OverlayOptions): Promise<void>
+  overlay(options: OverlayOptions): Promise<OverlayResult>
   close(): Promise<void>
   /** Extension only: block until a page with this URL connects. */
   waitForPage?(url: string, timeoutMs: number): Promise<WaitResult>

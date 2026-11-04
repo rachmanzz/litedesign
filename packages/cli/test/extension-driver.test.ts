@@ -78,6 +78,7 @@ async function setup(
       type?: string
       id?: string
       action?: string
+      payload?: { enabled?: boolean; layers?: string[] }
     }
 
     if (message.type !== 'request') return
@@ -94,7 +95,7 @@ async function setup(
         : message.action === 'measure'
           ? measured
           : message.action === 'overlay'
-            ? { ok: true }
+            ? { enabled: message.payload?.enabled !== false, layers: message.payload?.layers ?? [] }
             : { data: png }
 
     socket.send(JSON.stringify({ type: 'response', id: message.id, ok: true, result }))
@@ -133,8 +134,14 @@ describe('ExtensionDriver', () => {
     expect((await driver.screenshot()).subarray(0, 4).toString('hex')).toBe('89504e47')
     expect((await driver.annotate()).subarray(0, 4).toString('hex')).toBe('89504e47')
 
-    await expect(driver.overlay({ enabled: true, layers: ['grid'] })).resolves.toBeUndefined()
-    await expect(driver.overlay({ enabled: false })).resolves.toBeUndefined()
+    await expect(driver.overlay({ enabled: true, layers: ['grid'] })).resolves.toEqual({
+      enabled: true,
+      layers: ['grid'],
+    })
+    await expect(driver.overlay({ enabled: false })).resolves.toEqual({
+      enabled: false,
+      layers: [],
+    })
   })
 
   it('attaches to the active tab without a click', async () => {

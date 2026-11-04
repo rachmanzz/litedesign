@@ -48,21 +48,24 @@ export async function boot(core: Core): Promise<void> {
 /**
  * MCP control. `boot` toggles because a click means "flip it"; this sets the
  * state, because the agent says exactly what it wants to see.
+ *
+ * Returns what the page is actually showing afterwards, so the tool can report
+ * a reading instead of echoing the request.
  */
 export async function applyOverlay(
   core: Core,
   options: { enabled: boolean; layers?: LayerName[] },
-): Promise<void> {
+): Promise<{ enabled: boolean; layers: LayerName[] }> {
   if (!options.enabled) {
     window.__litedesign_teardown__?.()
-    return
+    return { enabled: false, layers: [] }
   }
 
   const layers = options.layers ?? (await loadState()).layers
 
   if (window.__litedesign_state__ === 'active') {
     window.__litedesign_layers__?.(layers)
-    return
+    return { enabled: true, layers }
   }
 
   window.__litedesign_state__ = 'starting'
@@ -73,6 +76,8 @@ export async function applyOverlay(
     window.__litedesign_state__ = undefined
     throw error
   }
+
+  return { enabled: overlayHost() !== undefined, layers }
 }
 
 function mount(core: Core, initial: LayerName[]): void {

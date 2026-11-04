@@ -298,6 +298,26 @@ suite('extension lifecycle', () => {
     await page.close()
   })
 
+  it('reports the layers the page is actually showing', async () => {
+    const { page, errors } = await open()
+    await mount(page)
+
+    const shown = await send(page, 'overlay', { enabled: true, layers: ['grid', 'gap'] })
+    expect(shown).toEqual({ ok: true, result: { enabled: true, layers: ['grid', 'gap'] } })
+
+    // The answer is the page's own state, so the toolbar has to agree with it.
+    const client = await shadowClient(page)
+    const issue = await findButton(client, 'data-layer', 'issue')
+    expect(attribute(issue, 'aria-pressed')).toBe('false')
+
+    const hidden = await send(page, 'overlay', { enabled: false })
+    expect(hidden).toEqual({ ok: true, result: { enabled: false, layers: [] } })
+    expect(await overlayState(page)).toEqual({ exists: false, display: '', state: null })
+
+    expect(errors).toEqual([])
+    await page.close()
+  })
+
   it('restores the overlay on injection when the stored state says it was on', async () => {
     const { page, errors } = await open({ litedesign: { enabled: true, layers: ['grid'] } })
 

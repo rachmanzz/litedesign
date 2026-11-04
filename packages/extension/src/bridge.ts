@@ -66,8 +66,13 @@ async function respond(core: Core, raw: unknown): Promise<Response> {
       await boot(core)
       return { ok: true }
     case 'overlay':
-      await applyOverlay(core, { enabled: payload.enabled !== false, layers: payload.layers })
-      return { ok: true }
+      return {
+        ok: true,
+        result: await applyOverlay(core, {
+          enabled: payload.enabled !== false,
+          layers: payload.layers,
+        }),
+      }
     case 'graph':
       return { ok: true, result: core.buildGraph(root()) }
     case 'measure':
