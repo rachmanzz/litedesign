@@ -86,7 +86,7 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Inspect page',
       description:
-        'Open a page and return a tree summary. Call this before measure, find_issues, overlay, screenshot, or screenshot_annotated. No image by default: the numbers the agent needs come from the DOM, so set screenshot to true only when you really need to see the page. With the extension driver this attaches to the active tab by itself; returns "awaiting_user" when no extension is connected and "mismatch" when the active tab is a different page.',
+        'Open a page and return a tree summary. Call this before measure, find_issues, overlay, screenshot, or screenshot_annotated. The summary includes labels: the count and unique names the human pinned onto parts of the page — when the human refers to a part by name, get its selector from the labels tool. No image by default: the numbers the agent needs come from the DOM, so set screenshot to true only when you really need to see the page. With the extension driver this attaches to the active tab by itself; returns "awaiting_user" when no extension is connected and "mismatch" when the active tab is a different page.',
       inputSchema: {
         url: z.string().url(),
         viewport,

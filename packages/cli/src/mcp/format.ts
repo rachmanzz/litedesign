@@ -1,4 +1,5 @@
 import type { Graph, Issue } from '@litedesign/core/types'
+import type { LabelMark } from '../drivers/types.js'
 
 const MAX_TREE_LINES = 200
 const MAX_DEPTH_INDENT = 12
@@ -34,6 +35,23 @@ export function formatTree(graph: Graph, maxLines = MAX_TREE_LINES): string {
   }
 
   return lines.join('\n')
+}
+
+export type LabelsSummary = { count: number; names: string[] }
+
+/**
+ * Count of the pinned labels plus their unique names, in order of first
+ * appearance. `inspect` carries this so an agent that never sees the labels
+ * tool in its tool list still learns the page has labels.
+ */
+export function labelsSummary(marks: LabelMark[]): LabelsSummary {
+  const names: string[] = []
+
+  for (const mark of marks) {
+    if (!names.includes(mark.label)) names.push(mark.label)
+  }
+
+  return { count: marks.length, names }
 }
 
 export function issuePayload(issues: Issue[], limit: number): IssuePayload {

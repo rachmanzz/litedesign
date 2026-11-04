@@ -1,6 +1,7 @@
 import type { Graph, GraphNode, Issue } from '@litedesign/core/types'
 import { describe, expect, it } from 'vitest'
-import { formatTree, issuePayload, pngSize } from '../src/mcp/format.js'
+import type { LabelMark } from '../src/drivers/types.js'
+import { formatTree, issuePayload, labelsSummary, pngSize } from '../src/mcp/format.js'
 
 function node(id: string, depth: number, overrides: Partial<GraphNode> = {}): GraphNode {
   return {
@@ -117,6 +118,22 @@ describe('issuePayload', () => {
       total: 1,
       truncated: false,
     })
+  })
+})
+
+describe('labelsSummary', () => {
+  it('counts every label and lists unique names in first-appearance order', () => {
+    const marks: LabelMark[] = [
+      { label: 'alcha', selector: '#a' },
+      { label: 'login', selector: '#b' },
+      { label: 'alcha', selector: '#c' },
+    ]
+
+    expect(labelsSummary(marks)).toEqual({ count: 3, names: ['alcha', 'login'] })
+  })
+
+  it('stays present and empty when the page has no labels', () => {
+    expect(labelsSummary([])).toEqual({ count: 0, names: [] })
   })
 })
 
