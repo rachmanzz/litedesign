@@ -1,3 +1,5 @@
+import { backoffDelay, MAX_ATTEMPTS, shouldRetry } from './backoff.js'
+
 /**
  * The service worker owns the WebSocket to the MCP hub, forwards measurement
  * requests to the content script, and captures the visible tab.
@@ -5,13 +7,17 @@
  * MV3 kills the worker when it goes idle. A WebSocket with traffic every 20s
  * keeps it alive; if Chrome still stops it, module init reconnects and restores
  * the last page from `chrome.storage.session`.
+ *
+ * Reconnection is bounded. The hub only exists while `litedesign mcp` runs, so
+ * a missing server is the normal state, not an error: after `MAX_ATTEMPTS` the
+ * worker stops trying and the action title says how to start it. Clicking the
+ * icon retries, because that is the user saying the server is up now.
  */
 
 const DEFAULT_PORT = 8787
 const PING_INTERVAL = 20000
-const RECONNECT_MIN = 1000
-const RECONNECT_MAX = 30000
 const SESSION_KEY = 'page'
+const ONLINE_TITLE = 'litedesign: toggle overlay'
 
 type Page = { tabId: number; url: string; title: string }
 
@@ -24,7 +30,8 @@ type Rect = { x: number; y: number; w: number; h: number }
 let socket: WebSocket | undefined
 let current: Page | undefined
 let port = DEFAULT_PORT
-let reconnectDelay = RECONNECT_MIN
+let failures = 0
+let offline = false
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined
 let pingTimer: ReturnType<typeof setInterval> | undefined
 
@@ -33,7 +40,10 @@ const ready = start()
 async function start(): Promise<void> {
   port = await readPort()
   current = await readPage()
-  connect()
+
+  // Without a page there is nothing to announce. Connecting anyway would only
+  // log a network error per attempt in the worker console.
+  if (current !== undefined) connect()
 }
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -54,7 +64,7 @@ chrome.action.onClicked.addListener(async (tab) => {
     await toTab('toggle')
 
     send({ type: 'hello', ...page, version: chrome.runtime.getManifest().version })
-    connect()
+    retry()
     await clearFailure(tab.id)
   } catch (error) {
     console.error('[litedesign] injection failed', error)
@@ -68,6 +78,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   current = undefined
   void savePage(undefined)
   send({ type: 'bye' })
+
+  // Nothing left to announce, so stop the keep-alive traffic too.
+  socket?.close()
 })
 
 function connect(): void {
@@ -77,7 +90,8 @@ function connect(): void {
   socket = next
 
   next.addEventListener('open', () => {
-    reconnectDelay = RECONNECT_MIN
+    failures = 0
+    void setOnline()
 
     if (current !== undefined) {
       send({ type: 'hello', ...current, version: chrome.runtime.getManifest().version })
@@ -94,7 +108,14 @@ function connect(): void {
     if (socket === next) socket = undefined
 
     stopPing()
-    scheduleReconnect()
+
+    // No page means nothing to announce. Reconnecting would only retry blindly.
+    if (current === undefined) return
+
+    failures += 1
+
+    if (shouldRetry(failures)) scheduleReconnect()
+    else void setOffline()
   })
 
   next.addEventListener('error', () => {
@@ -102,15 +123,74 @@ function connect(): void {
   })
 }
 
+/** The icon click means the user expects a server now, so start a fresh run. */
+function retry(): void {
+  failures = 0
+
+  if (reconnectTimer !== undefined) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = undefined
+  }
+
+  connect()
+}
+
 function scheduleReconnect(): void {
   if (reconnectTimer !== undefined) return
 
-  const delay = reconnectDelay + Math.round(Math.random() * 250)
+  const delay = backoffDelay(failures) + Math.round(Math.random() * 250)
   reconnectTimer = setTimeout(() => {
     reconnectTimer = undefined
-    reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX)
     connect()
   }, delay)
+}
+
+/**
+ * Says the bridge is down once, then stops. The browser logs the failed
+ * WebSocket itself; repeating it every 30 seconds only hides the real cause.
+ */
+async function setOffline(): Promise<void> {
+  const first = !offline
+  offline = true
+
+  if (first) {
+    console.info(
+      `[litedesign] no MCP server on ws://127.0.0.1:${port} after ${MAX_ATTEMPTS} attempts. ` +
+        'Start "litedesign mcp", then click the icon again.',
+    )
+  }
+
+  await applyStatus()
+}
+
+async function setOnline(): Promise<void> {
+  if (!offline) return
+
+  offline = false
+  await applyStatus()
+}
+
+function offlineTitle(): string {
+  return `litedesign: no MCP server on port ${port} — start "litedesign mcp"`
+}
+
+/** Global for new tabs, per-tab for the tab we care about. */
+async function applyStatus(tabId: number | undefined = current?.tabId): Promise<void> {
+  const badge = offline ? '!' : ''
+  const title = offline ? offlineTitle() : ONLINE_TITLE
+
+  try {
+    await chrome.action.setBadgeText({ text: badge })
+    await chrome.action.setBadgeBackgroundColor({ color: '#dc2626' })
+    await chrome.action.setTitle({ title })
+
+    if (tabId !== undefined) {
+      await chrome.action.setBadgeText({ tabId, text: badge })
+      await chrome.action.setTitle({ tabId, title })
+    }
+  } catch {
+    // The action API is unavailable while Chrome shuts down.
+  }
 }
 
 function startPing(): void {
@@ -360,10 +440,5 @@ async function showFailure(tabId: number): Promise<void> {
 }
 
 async function clearFailure(tabId: number): Promise<void> {
-  try {
-    await chrome.action.setBadgeText({ tabId, text: '' })
-    await chrome.action.setTitle({ tabId, title: 'litedesign: toggle overlay' })
-  } catch {
-    // The tab may already be gone.
-  }
+  await applyStatus(tabId)
 }
