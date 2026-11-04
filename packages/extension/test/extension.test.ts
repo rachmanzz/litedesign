@@ -271,6 +271,10 @@ loadSuite('unpacked extension', () => {
           : undefined
 
       expect(serviceWorker).toBe('sw.js')
+
+      // The icon opens a menu so "watch this tab" is a choice, not a toggle.
+      const action = manifest.action
+      expect(action?.default_popup).toBe('popup.html')
     } finally {
       await context?.close()
       await rm(profile, { recursive: true, force: true })

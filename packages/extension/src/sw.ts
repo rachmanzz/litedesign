@@ -1,4 +1,5 @@
 import { backoffDelay, OFFLINE_AFTER } from './backoff.js'
+import type { BridgeStatus } from './types.js'
 
 /**
  * The service worker owns the WebSocket to the MCP hub, forwards measurement
@@ -17,7 +18,7 @@ import { backoffDelay, OFFLINE_AFTER } from './backoff.js'
 const DEFAULT_PORT = 8787
 const PING_INTERVAL = 20000
 const SESSION_KEY = 'page'
-const ONLINE_TITLE = 'litedesign: toggle overlay'
+const ONLINE_TITLE = 'litedesign: watch this tab'
 
 type Page = { tabId: number; url: string; title: string }
 
@@ -56,31 +57,78 @@ function wake(): void {
 chrome.tabs.onActivated.addListener(wake)
 chrome.windows.onFocusChanged.addListener(wake)
 
-chrome.action.onClicked.addListener(async (tab) => {
+/**
+ * The popup asks the worker what it holds and for explicit actions. The icon
+ * opens that menu instead of toggling the overlay, so binding a tab is the
+ * human's decision rather than a side effect of a click.
+ */
+chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+  void answer(message).then(respond, (error: unknown) => {
+    respond({ ok: false, error: messageOf(error) })
+  })
+
+  // Keeps the channel open for the async answer.
+  return true
+})
+
+async function answer(message: unknown): Promise<BridgeResult> {
   await ready
 
-  if (tab.id === undefined) return
+  if (typeof message !== 'object' || message === null) throw new Error('invalid message')
+
+  const request = message as { type?: unknown; tabId?: unknown }
+
+  switch (request.type) {
+    case 'status':
+      return { ok: true, result: status() }
+    case 'watch':
+      if (typeof request.tabId !== 'number') throw new Error('watch needs a tab id')
+      return { ok: true, result: await watch(request.tabId) }
+    case 'overlay':
+      if (typeof request.tabId !== 'number') throw new Error('overlay needs a tab id')
+      return { ok: true, result: await toggleOverlay(request.tabId) }
+    default:
+      throw new Error(`unknown message: ${String(request.type)}`)
+  }
+}
+
+function status(): BridgeStatus {
+  return {
+    bridge: socket?.readyState === WebSocket.OPEN,
+    port,
+    page: current ?? null,
+  }
+}
+
+/**
+ * Binds the worker to one tab on purpose. This is the same state `attach`
+ * produces for the agent, but started by the human from the popup.
+ */
+async function watch(tabId: number): Promise<Page> {
+  const tab = await chrome.tabs.get(tabId)
 
   if (!isSupported(tab.url)) {
-    await showFailure(tab.id)
-    return
+    throw new Error('this tab is not an http(s) page. Open the page you want to measure.')
   }
 
-  try {
-    const page: Page = { tabId: tab.id, url: tab.url ?? '', title: tab.title ?? '' }
-    current = page
-    await savePage(page)
+  const page: Page = { tabId, url: tab.url ?? '', title: tab.title ?? '' }
 
-    await toTab('toggle')
+  await ensureContent(tabId)
 
-    send({ type: 'hello', ...page, version: chrome.runtime.getManifest().version })
-    retry()
-    await clearFailure(tab.id)
-  } catch (error) {
-    console.error('[litedesign] injection failed', error)
-    await showFailure(tab.id)
-  }
-})
+  current = page
+  await savePage(page)
+  send({ type: 'hello', ...page, version: chrome.runtime.getManifest().version })
+  retry()
+  await applyStatus(tabId)
+
+  return page
+}
+
+/** The overlay belongs to the watched tab, so watch it first when needed. */
+async function toggleOverlay(tabId: number): Promise<unknown> {
+  if (current?.tabId !== tabId) await watch(tabId)
+  return toTab('toggle')
+}
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (current?.tabId !== tabId) return
@@ -458,21 +506,4 @@ async function savePage(page: Page | undefined): Promise<void> {
   } catch {
     // The connection still works without the restore hint.
   }
-}
-
-async function showFailure(tabId: number): Promise<void> {
-  try {
-    await chrome.action.setBadgeText({ tabId, text: '!' })
-    await chrome.action.setBadgeBackgroundColor({ tabId, color: '#dc2626' })
-    await chrome.action.setTitle({
-      tabId,
-      title: 'litedesign cannot run here. Open a normal http(s) page and click the icon again.',
-    })
-  } catch {
-    // The tab may already be gone.
-  }
-}
-
-async function clearFailure(tabId: number): Promise<void> {
-  await applyStatus(tabId)
 }

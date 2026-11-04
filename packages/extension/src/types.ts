@@ -25,6 +25,16 @@ const LAYER_NAMES: Record<LayerName, true> = {
 
 export const LAYERS = Object.keys(LAYER_NAMES) as LayerName[]
 
+/**
+ * What the popup shows: whether the worker holds a socket to the bridge, on
+ * which port, and which tab it currently measures.
+ */
+export type BridgeStatus = {
+  bridge: boolean
+  port: number
+  page: { tabId: number; url: string; title: string } | null
+}
+
 /** Layers the toolbar can switch. Hover inspection stays on. */
 export const TOGGLE_LAYERS = [
   'grid',

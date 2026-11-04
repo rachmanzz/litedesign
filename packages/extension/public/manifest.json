@@ -10,6 +10,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "litedesign: toggle overlay"
+    "default_title": "litedesign: watch this tab",
+    "default_popup": "popup.html"
   }
 }

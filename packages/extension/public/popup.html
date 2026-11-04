@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>litedesign</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        width: 264px;
+        margin: 0;
+        padding: 12px;
+        background: #111111;
+        color: #e5e5e5;
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .page {
+        margin: 0 0 10px;
+        color: #a3a3a3;
+        word-break: break-all;
+      }
+      button {
+        display: block;
+        width: 100%;
+        margin-bottom: 6px;
+        padding: 7px 9px;
+        border: 0;
+        border-radius: 6px;
+        background: #262626;
+        color: #d4d4d4;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      button:hover:enabled {
+        background: #404040;
+      }
+      button.primary {
+        background: #3b82f6;
+        color: #ffffff;
+      }
+      button.primary:hover:enabled {
+        background: #2563eb;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .status {
+        margin: 8px 0 0;
+        color: #a3a3a3;
+      }
+      .status.bad {
+        color: #f87171;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>litedesign</h1>
+    <p class="page" id="page">reading the active tab…</p>
+    <button type="button" id="watch" class="primary">Watch this tab</button>
+    <button type="button" id="overlay">Toggle overlay</button>
+    <p class="status" id="status">checking the bridge…</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

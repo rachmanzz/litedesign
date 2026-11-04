@@ -53,11 +53,20 @@ async function buildExtension() {
     outfile: at('packages/extension/dist/content.js'),
   })
 
+  await build({
+    ...shared,
+    entryPoints: [at('packages/extension/src/popup.ts')],
+    format: 'iife',
+    target: 'chrome120',
+    outfile: at('packages/extension/dist/popup.js'),
+  })
+
   await cp(
     at('packages/extension/public/manifest.json'),
     at('packages/extension/dist/manifest.json'),
   )
   await cp(at('packages/extension/public/config.json'), at('packages/extension/dist/config.json'))
+  await cp(at('packages/extension/public/popup.html'), at('packages/extension/dist/popup.html'))
   await cp(at('packages/core/dist/core.iife.js'), at('packages/extension/dist/core.iife.js'))
 }
 
