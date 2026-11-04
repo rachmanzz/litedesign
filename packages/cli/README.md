@@ -44,20 +44,35 @@ litedesign mcp                # MCP server (stdio)
 
 ## Tools
 
-| Tool                   | What it returns                                             |
-| ---------------------- | ----------------------------------------------------------- |
-| `capabilities`         | version, drivers, mode, connected pages, valid rules        |
-| `inspect`              | tree summary; opens the page; no image by default           |
-| `await_page`           | wait for the page from `inspect` to connect                 |
-| `measure`              | box model, computed styles, gaps for one selector           |
-| `find_issues`          | rule violations with selector, actual, expected, severity   |
-| `screenshot`           | PNG of the viewport or one element                          |
-| `screenshot_annotated` | PNG with grid, guides, gaps, and issue labels               |
-| `overlay`              | shows or hides the layers; answers with what the page shows |
+| Tool                   | What it returns                                          |
+| ---------------------- | -------------------------------------------------------- |
+| `capabilities`         | version, drivers, mode, connected pages, valid rules     |
+| `inspect`              | tree summary; opens the page; no image by default        |
+| `await_page`           | wait for the page from `inspect` to connect              |
+| `measure`              | box model, computed styles, gaps for one selector        |
+| `find_issues`          | findings with kind, selector, actual, expected, severity |
+| `screenshot`           | PNG of the viewport or one element                       |
+| `screenshot_annotated` | PNG with grid, guides, gaps, and issue labels            |
+| `overlay`              | shows or hides layers, spotlights one component          |
+| `labels`               | names the human pinned in the toolbar, with selectors    |
 
 Call `inspect` first. It opens the page and keeps it alive for the other tools.
 It returns no image unless you pass `screenshot: true`; use the `screenshot` or
 `screenshot_annotated` tools when you actually need to see the page.
+
+`overflow` and `contrast` findings are measured facts (`kind: "violation"`);
+spacing, alignment, and radius findings are heuristics (`kind: "candidate"`)
+that can be false positives. Verify a candidate with `measure` before changing
+code.
+
+`overlay` also takes `focus`: the same selector `measure` returns. The rest of
+the page dims, the target is outlined and scrolled into view; `focus: null`
+clears it. Focusing scrolls the page, so a capture made afterwards records the
+scrolled viewport.
+
+`labels` returns the names the human pinned onto parts of the page through the
+toolbar. When the human refers to a part by name, look it up there instead of
+guessing a selector. Labels are read-only for the agent.
 
 ## Drivers
 

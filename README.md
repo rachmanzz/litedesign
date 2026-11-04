@@ -13,14 +13,21 @@ layout.
 
 ## What you get
 
-- **Overlay layers** — `grid` (8px), `guide` (alignment edges and centers),
-  `gap` (distance labels between neighbours), `issue` (rule violations),
-  `hover` (box model of the element under the cursor).
+- **Overlay layers** — `grid` (8px, two axes), `guide` (alignment edges and
+  centers), `gap` (distance labels between neighbours), `issue` (rule
+  violations), `dim` (dims everything around the focused element), `focus`
+  (outline and radius arcs of the focused element), `hover` (box model of the
+  element under the cursor). Every layer is a toggle in the toolbar.
+- **Grid controls** — pick vertical, horizontal, or both directions by icon,
+  and step the spacing from 8px to 128px. Your choice survives page reloads.
+- **Labels** — pin a name onto any part of the page from the toolbar; the
+  badge stays through hot reloads, and the agent reads it back by name instead
+  of guessing selectors.
 - **Rules** — `spacing-scale`, `alignment-near-miss`, `radius-consistency`,
   `overflow`, `contrast`. Each rule is one file and one reason to change.
 - **MCP tools** — an agent can open the page, measure a selector, list issues,
-  capture the viewport, annotate it, and draw the overlay without asking you to
-  click anything.
+  capture the viewport, annotate it, draw the overlay, and read your labels
+  without asking you to click anything.
 
 ## Requirements
 
@@ -81,8 +88,20 @@ bridge status and two actions:
 | Watch this tab   | binds this tab as the page the agent measures            |
 | Toggle overlay   | turns the grid, guides, gap labels, and issues on or off |
 
-The overlay state (on/off and which layers) is stored in the extension, so a
-page reload no longer clears it.
+The overlay state (on/off, layers, focus, grid settings, labels) is stored in
+the extension, so a page reload no longer clears it.
+
+While the overlay is on, the toolbar in the page gives you the controls:
+
+| Control       | What it does                                                     |
+| ------------- | ---------------------------------------------------------------- |
+| Layer buttons | turn each layer on or off — the agent never touches these        |
+| `label`       | mark a part of the page with a name the agent can read           |
+| Grid icons    | vertical, horizontal, or both directions; `-`/`+` sets the spacing |
+
+Clicking `label` and then an element opens a small popup next to that element:
+type a name and press Enter to pin it, press Enter again on a labeled element
+to rename it, click the × in the popup to remove it.
 
 The bridge is a standalone daemon, not a child of the agent session:
 
@@ -137,10 +156,11 @@ still points at the old process. Reload the client configuration (in OpenCode:
 | `inspect`              | tree summary; opens and keeps the page; no image by default |
 | `await_page`           | waits for the page from `inspect` to connect                |
 | `measure`              | box model, computed styles, and gaps for one selector       |
-| `find_issues`          | rule violations with selector, actual, expected, severity   |
+| `find_issues`          | findings with kind, selector, actual, expected, severity    |
 | `screenshot`           | PNG of the viewport, or of one element                      |
 | `screenshot_annotated` | PNG with grid, guides, gaps, and issue labels               |
-| `overlay`              | shows or hides the layers; answers with what the page shows |
+| `overlay`              | shows or hides layers, spotlights one component             |
+| `labels`               | names you pinned in the toolbar, each mapped to a selector  |
 
 Call `inspect` first. It opens the page and keeps it alive for the other tools.
 
@@ -148,6 +168,22 @@ Call `inspect` first. It opens the page and keeps it alive for the other tools.
 agent can measure and fix without one. Ask for a picture only when you need to
 see the page — `inspect` with `screenshot: true`, or the `screenshot` and
 `screenshot_annotated` tools.
+
+Findings are honest about their own trustworthiness. `overflow` and `contrast`
+are measured facts (`kind: "violation"`); the spacing, alignment, and radius
+rules are heuristics (`kind: "candidate"`) that can be false positives. Verify
+a candidate with `measure` on the same selector before changing code.
+
+`overlay` can also spotlight one component: pass `focus` with the same selector
+`measure` returns and the rest of the page dims while the target is outlined
+and scrolled into view — the human sees exactly what the agent is editing.
+`focus: null` clears it. Focusing scrolls the page, so a capture made afterwards
+records the scrolled viewport.
+
+Labels close the naming gap between you and the agent. When you say "the login
+card", the agent calls `labels`, finds the selector you pinned under that name,
+and focuses or measures exactly that element — no guessed selectors. Labels are
+yours: the agent reads them and cannot create or remove them.
 
 ## Drivers
 
