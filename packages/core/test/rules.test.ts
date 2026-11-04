@@ -19,6 +19,7 @@ describe('spacingScale', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0]).toMatchObject({
       rule: 'spacing-scale',
+      kind: 'candidate',
       actual: '10px',
       expected: '12px',
       autoFix: true,
@@ -43,7 +44,9 @@ describe('alignmentNearMiss', () => {
 
     const issues = alignmentNearMiss(graph(nodes))
 
-    expect(issues.some((item) => item.rule === 'alignment-near-miss')).toBe(true)
+    const nearMiss = issues.find((item) => item.rule === 'alignment-near-miss')
+    expect(nearMiss).toBeDefined()
+    expect(nearMiss?.kind).toBe('candidate')
   })
 
   it('stays quiet when edges are already aligned', () => {
@@ -73,6 +76,7 @@ describe('radiusConsistency', () => {
       actual: '12px',
       expected: '8px',
       severity: 'P3',
+      kind: 'candidate',
     })
   })
 
@@ -95,7 +99,11 @@ describe('overflowClipped', () => {
     const issues = overflowClipped(graph(nodes))
 
     expect(issues).toHaveLength(1)
-    expect(issues[0]).toMatchObject({ rule: 'overflow', actual: '200px content in 100px' })
+    expect(issues[0]).toMatchObject({
+      rule: 'overflow',
+      kind: 'violation',
+      actual: '200px content in 100px',
+    })
   })
 
   it('ignores sub-pixel noise', () => {
@@ -153,6 +161,7 @@ describe('contrastMinimum', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0]?.rule).toBe('contrast')
     expect(issues[0]?.severity).toBe('P1')
+    expect(issues[0]?.kind).toBe('violation')
   })
 
   it('resolves the background from an ancestor', () => {

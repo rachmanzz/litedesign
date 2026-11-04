@@ -32,6 +32,7 @@ export const contrastMinimum = defineRule('contrast', (graph) => {
         rule: 'contrast',
         selector: node.id,
         severity: 'P1',
+        kind: 'violation',
         actual: `${Math.round(ratio * 100) / 100}:1`,
         expected: `>= ${minimum}:1`,
         autoFix: false,

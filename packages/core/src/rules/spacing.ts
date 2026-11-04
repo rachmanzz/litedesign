@@ -21,6 +21,7 @@ export const spacingScale = defineRule('spacing-scale', (graph) => {
         selector: gap.a,
         key: `${gap.axis}:${gap.b}`,
         severity: 'P2',
+        kind: 'candidate',
         actual: `${actual}px`,
         expected: `${Math.round(actual / SPACING_SCALE) * SPACING_SCALE}px`,
         autoFix: true,

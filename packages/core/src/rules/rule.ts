@@ -1,4 +1,4 @@
-import type { Graph, Issue, Severity } from '../types.js'
+import type { Graph, Issue, IssueKind, Severity } from '../types.js'
 
 /**
  * A rule reads a graph and returns issues. No DOM, no async, no I/O.
@@ -16,6 +16,8 @@ type IssueInput = {
   rule: string
   selector: string
   severity: Severity
+  /** Declared by the rule: is this a measured fact or a heuristic judgment? */
+  kind: IssueKind
   actual: string
   expected: string
   autoFix: boolean
@@ -31,6 +33,7 @@ export function issue(input: IssueInput): Issue {
     selector: input.selector,
     rule: input.rule,
     severity: input.severity,
+    kind: input.kind,
     actual: input.actual,
     expected: input.expected,
     autoFix: input.autoFix,

@@ -44,6 +44,7 @@ export const radiusConsistency = defineRule('radius-consistency', (graph) => {
           rule: 'radius-consistency',
           selector: node.id,
           severity: 'P3',
+          kind: 'candidate',
           actual: value,
           expected: expectedValue,
           autoFix: true,

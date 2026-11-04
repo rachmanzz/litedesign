@@ -5,7 +5,9 @@ const MAX_DEPTH_INDENT = 12
 const MAX_TEXT = 48
 
 export type IssuePayload = {
-  issues: Array<Pick<Issue, 'selector' | 'rule' | 'severity' | 'actual' | 'expected' | 'autoFix'>>
+  issues: Array<
+    Pick<Issue, 'selector' | 'rule' | 'severity' | 'kind' | 'actual' | 'expected' | 'autoFix'>
+  >
   total: number
   truncated: boolean
 }
@@ -40,6 +42,7 @@ export function issuePayload(issues: Issue[], limit: number): IssuePayload {
       selector: issue.selector,
       rule: issue.rule,
       severity: issue.severity,
+      kind: issue.kind,
       actual: issue.actual,
       expected: issue.expected,
       autoFix: issue.autoFix,

@@ -19,6 +19,7 @@ const graph: Graph = {
       selector: 'body:nth-child(1)',
       rule: 'spacing-scale',
       severity: 'P2',
+      kind: 'candidate',
       actual: '10px',
       expected: '12px',
       autoFix: true,

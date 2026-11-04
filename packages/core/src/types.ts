@@ -72,11 +72,20 @@ export type Patch = {
   ops: Array<{ selector: string; prop: string; from?: string; to: string }>
 }
 
+/**
+ * How much trust a finding deserves. A `violation` is a measured fact (the
+ * numbers cannot lie); a `candidate` is a heuristic judgment about whether a
+ * measured fact matters. The judgment is where false positives live, so it is
+ * named as such instead of hiding behind the same word as the facts.
+ */
+export type IssueKind = 'violation' | 'candidate'
+
 export type Issue = {
   id: string
   selector: string
   rule: string
   severity: Severity
+  kind: IssueKind
   actual: string
   expected: string
   autoFix: boolean

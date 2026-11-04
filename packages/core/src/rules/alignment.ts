@@ -59,6 +59,7 @@ export const alignmentNearMiss = defineRule('alignment-near-miss', (graph) => {
           selector: worst.node.id,
           key: spec.edge,
           severity: 'P2',
+          kind: 'candidate',
           actual: `${Math.round(worst.value * 10) / 10}px`,
           expected: `${Math.round(target.value * 10) / 10}px`,
           autoFix: false,
