@@ -29,7 +29,7 @@ export async function wsCommand(argv: string[]): Promise<void> {
       return
     }
     case 'stop': {
-      const stopped = await stopDaemon()
+      const stopped = await stopDaemon(port)
       console.log(stopped ? '  bridge stopped' : '  bridge was not running')
       return
     }

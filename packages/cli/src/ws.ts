@@ -5,7 +5,7 @@ import { createConnection } from 'node:net'
 import { Hub, type HubPage } from './hub.js'
 import { HubClient } from './hub-client.js'
 import { ToolError } from './mcp/errors.js'
-import { WS_STATE } from './paths.js'
+import { wsState } from './paths.js'
 
 export type WsState = { pid: number; port: number }
 
@@ -35,11 +35,12 @@ export function portOpen(port: number, timeoutMs = 400): Promise<boolean> {
   })
 }
 
-export async function readState(): Promise<WsState | undefined> {
-  if (!existsSync(WS_STATE)) return undefined
+export async function readState(port: number): Promise<WsState | undefined> {
+  const file = wsState(port)
+  if (!existsSync(file)) return undefined
 
   try {
-    const raw = JSON.parse(await readFile(WS_STATE, 'utf8')) as { pid?: unknown; port?: unknown }
+    const raw = JSON.parse(await readFile(file, 'utf8')) as { pid?: unknown; port?: unknown }
     if (typeof raw.pid !== 'number' || typeof raw.port !== 'number') return undefined
     return { pid: raw.pid, port: raw.port }
   } catch {
@@ -48,11 +49,11 @@ export async function readState(): Promise<WsState | undefined> {
 }
 
 async function writeState(state: WsState): Promise<void> {
-  await writeFile(WS_STATE, `${JSON.stringify(state, null, 2)}\n`)
+  await writeFile(wsState(state.port), `${JSON.stringify(state, null, 2)}\n`)
 }
 
-async function clearState(): Promise<void> {
-  await rm(WS_STATE, { force: true })
+async function clearState(port: number): Promise<void> {
+  await rm(wsState(port), { force: true })
 }
 
 export function isAlive(pid: number): boolean {
@@ -84,7 +85,7 @@ export async function runDaemon(port: number): Promise<void> {
 
   const stop = (): void => {
     void (async () => {
-      await clearState()
+      await clearState(port)
       await hub.close()
       process.exit(0)
     })()
@@ -100,7 +101,7 @@ export async function runDaemon(port: number): Promise<void> {
  */
 export async function startDaemon(port: number): Promise<WsState> {
   if (await portOpen(port)) {
-    const state = await readState()
+    const state = await readState(port)
     return state ?? { pid: 0, port }
   }
 
@@ -124,7 +125,7 @@ export async function startDaemon(port: number): Promise<WsState> {
     )
   }
 
-  const state = await waitForValue(readState, 2000)
+  const state = await waitForValue(() => readState(port), 2000)
   return state ?? { pid: 0, port }
 }
 
@@ -146,11 +147,11 @@ export async function ensureBridge(port: number): Promise<HubClient> {
   }
 }
 
-export async function stopDaemon(): Promise<boolean> {
-  const state = await readState()
+export async function stopDaemon(port: number): Promise<boolean> {
+  const state = await readState(port)
 
   if (state === undefined) {
-    await clearState()
+    await clearState(port)
     return false
   }
 
@@ -161,16 +162,16 @@ export async function stopDaemon(): Promise<boolean> {
     if (!stopped) throw new ToolError(`the bridge (pid ${state.pid}) did not stop`)
   }
 
-  await clearState()
+  await clearState(port)
   return true
 }
 
 export async function wsStatus(port: number): Promise<WsStatus> {
-  const state = await readState()
+  const state = await readState(port)
   const listening = await portOpen(port)
 
   if (!listening) {
-    if (state !== undefined) await clearState()
+    if (state !== undefined) await clearState(port)
     return { running: false, port }
   }
 
