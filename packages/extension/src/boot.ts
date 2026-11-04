@@ -35,8 +35,12 @@ export async function boot(core: Core): Promise<void> {
 }
 
 function mount(core: Core, initial: LayerName[]): void {
+  // `document.body` can be missing if the user clicks before parsing finishes;
+  // documentElement is always there and catches the body once it appears.
+  const root = document.body ?? document.documentElement
+
   let layers = initial
-  let graph: Graph = core.buildGraph(document.body)
+  let graph: Graph = core.buildGraph(root)
   let handle: OverlayHandle | undefined
   let observer: Observer | undefined
   let toolbar: Toolbar
@@ -51,7 +55,7 @@ function mount(core: Core, initial: LayerName[]): void {
   }
 
   const refresh = (): void => {
-    graph = core.buildGraph(document.body)
+    graph = core.buildGraph(root)
     handle?.update(graph)
     toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
   }
@@ -71,7 +75,7 @@ function mount(core: Core, initial: LayerName[]): void {
   toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
 
   handle = core.render(graph, { layers, toolbar: toolbar.element })
-  observer = observeChanges({ root: document.body, onChange: refresh })
+  observer = observeChanges({ root, onChange: refresh })
 
   window.__litedesign_teardown__ = teardown
   window.__litedesign_state__ = 'active'
