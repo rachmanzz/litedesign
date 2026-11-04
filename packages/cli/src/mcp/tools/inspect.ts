@@ -55,7 +55,10 @@ export async function inspectTool(input: InspectInput): Promise<ToolResult> {
     tree: formatTree(graph),
   }
 
-  if (input.screenshot === false) return textResult(payload)
+  // The image costs the agent a lot of context, so it is off unless asked for.
+  // Everything the agent needs to judge spacing and alignment is already in
+  // `payload`, measured from the DOM.
+  if (input.screenshot !== true) return textResult(payload)
 
   const image = await driver.screenshot()
   return imageResult(payload, image)

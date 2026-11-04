@@ -85,11 +85,16 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Inspect page',
       description:
-        'Open a page and return a tree summary plus a screenshot. Call this before measure, find_issues, overlay, screenshot, or screenshot_annotated. With the extension driver this attaches to the active tab by itself; returns "awaiting_user" when no extension is connected and "mismatch" when the active tab is a different page.',
+        'Open a page and return a tree summary. Call this before measure, find_issues, overlay, screenshot, or screenshot_annotated. No image by default: the numbers the agent needs come from the DOM, so set screenshot to true only when you really need to see the page. With the extension driver this attaches to the active tab by itself; returns "awaiting_user" when no extension is connected and "mismatch" when the active tab is a different page.',
       inputSchema: {
         url: z.string().url(),
         viewport,
-        screenshot: z.boolean().optional().describe('Set false to skip the image'),
+        screenshot: z
+          .boolean()
+          .optional()
+          .describe(
+            'Set true to also return a viewport PNG. Off by default: ask for it only when visual context is essential.',
+          ),
       },
     },
     async (input) => guard(() => inspectTool(input)),

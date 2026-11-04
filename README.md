@@ -134,7 +134,7 @@ still points at the old process. Reload the client configuration (in OpenCode:
 | Tool                   | What it returns                                             |
 | ---------------------- | ----------------------------------------------------------- |
 | `capabilities`         | version, drivers, mode, connected pages, valid rule names   |
-| `inspect`              | tree summary and a screenshot; opens and keeps the page     |
+| `inspect`              | tree summary; opens and keeps the page; no image by default |
 | `await_page`           | waits for the page from `inspect` to connect                |
 | `measure`              | box model, computed styles, and gaps for one selector       |
 | `find_issues`          | rule violations with selector, actual, expected, severity   |
@@ -143,6 +143,11 @@ still points at the old process. Reload the client configuration (in OpenCode:
 | `overlay`              | shows or hides the layers; answers with what the page shows |
 
 Call `inspect` first. It opens the page and keeps it alive for the other tools.
+
+`inspect` returns no image by default: every number comes from the DOM, so the
+agent can measure and fix without one. Ask for a picture only when you need to
+see the page — `inspect` with `screenshot: true`, or the `screenshot` and
+`screenshot_annotated` tools.
 
 ## Drivers
 

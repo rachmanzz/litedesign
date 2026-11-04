@@ -47,7 +47,7 @@ litedesign mcp                # MCP server (stdio)
 | Tool                   | What it returns                                             |
 | ---------------------- | ----------------------------------------------------------- |
 | `capabilities`         | version, drivers, mode, connected pages, valid rules        |
-| `inspect`              | tree summary + screenshot; opens the page                   |
+| `inspect`              | tree summary; opens the page; no image by default           |
 | `await_page`           | wait for the page from `inspect` to connect                 |
 | `measure`              | box model, computed styles, gaps for one selector           |
 | `find_issues`          | rule violations with selector, actual, expected, severity   |
@@ -56,6 +56,8 @@ litedesign mcp                # MCP server (stdio)
 | `overlay`              | shows or hides the layers; answers with what the page shows |
 
 Call `inspect` first. It opens the page and keeps it alive for the other tools.
+It returns no image unless you pass `screenshot: true`; use the `screenshot` or
+`screenshot_annotated` tools when you actually need to see the page.
 
 ## Drivers
 
