@@ -7,16 +7,16 @@ import { VERSION } from './version.js'
 const HELP = `
   litedesign v${VERSION}
 
-  Pemakaian:
-    litedesign setup              siapkan extension + config
-    litedesign extension path     cetak folder untuk Load unpacked
-    litedesign extension update   salin ulang setelah upgrade
-    litedesign doctor             cek node, extension, dan port
-    litedesign mcp                jalankan MCP server (stdio)
+  Usage:
+    litedesign setup              scaffold extension + config
+    litedesign extension path     print the folder to load unpacked
+    litedesign extension update   re-copy after an upgrade
+    litedesign doctor             check node, extension, and port
+    litedesign mcp                start the MCP server (stdio)
 
-  Opsi:
-    -h, --help                    tampilkan bantuan
-    -v, --version                 tampilkan versi
+  Options:
+    -h, --help                    show this help
+    -v, --version                 show the version
 `
 
 export async function run(argv: string[]): Promise<void> {
@@ -46,6 +46,6 @@ export async function run(argv: string[]): Promise<void> {
       await runMcpServer()
       return
     default:
-      throw new Error(`perintah tidak dikenal: ${command}. Coba: litedesign --help`)
+      throw new Error(`unknown command: ${command}. Try: litedesign --help`)
   }
 }

@@ -1,9 +1,9 @@
 /**
- * Model data inti. Sumber kebenaran konseptual ada di
+ * Core data model. The conceptual source of truth lives in
  * `.knowledges/docs/architecture.md`.
  *
- * `GraphNode`, bukan `Node`: nama `Node` bentrok dengan DOM Node di file yang
- * memakai `lib: DOM`.
+ * `GraphNode`, not `Node`: the name `Node` collides with the DOM Node in files
+ * that use `lib: DOM`.
  */
 
 export type Rect = { x: number; y: number; w: number; h: number }

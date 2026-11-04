@@ -2,19 +2,19 @@ import { VERSION } from '../version.js'
 
 function handoffMessage(url: string): string {
   return [
-    `Buka ${url} lalu klik ikon litedesign di toolbar Chrome.`,
+    `Open ${url} and click the litedesign icon in the Chrome toolbar.`,
     '',
-    'Kalau ikonnya tidak ada:',
-    '- pastikan extension sudah di-load unpacked di chrome://extensions',
-    '- pastikan tab yang aktif adalah tab halaman tersebut',
+    'If the icon is missing:',
+    '- make sure the extension is loaded unpacked at chrome://extensions',
+    '- make sure the active tab is the page above',
     '',
-    'Saya menunggu halaman itu terhubung.',
+    'I am waiting for that page to connect.',
   ].join('\n')
 }
 
 async function detectPlaywright(): Promise<boolean> {
-  // `playwright` membawa `playwright-core` sebagai dependensi, jadi memeriksa
-  // yang kedua sudah cukup untuk mendeteksi keduanya.
+  // `playwright` ships `playwright-core` as a dependency, so checking the
+  // latter covers both.
   try {
     await import('playwright-core')
     return true
@@ -34,7 +34,7 @@ export async function runMcpServer(): Promise<void> {
     'capabilities',
     {
       title: 'Capabilities',
-      description: 'Versi server dan driver yang tersedia.',
+      description: 'Server version and available drivers.',
       inputSchema: {},
     },
     async () => {
@@ -63,7 +63,7 @@ export async function runMcpServer(): Promise<void> {
     {
       title: 'Inspect page',
       description:
-        'Buka halaman dan kembalikan ringkasan tree + screenshot. Kalau tidak ada driver yang bisa membuka halaman, mengembalikan status awaiting_user berisi instruksi untuk manusia.',
+        'Open a page and return a tree summary plus a screenshot. When no driver can open the page, returns an awaiting_user status containing instructions for the human.',
       inputSchema: { url: z.string().url() },
     },
     async ({ url }) => {
@@ -74,7 +74,7 @@ export async function runMcpServer(): Promise<void> {
             status: 'not_implemented',
             url,
             message:
-              'Driver playwright terdeteksi, tetapi pengambilan graph belum diimplementasikan (M3).',
+              'Playwright driver detected, but graph extraction is not implemented yet (M3).',
           }
         : { status: 'awaiting_user', url, message: handoffMessage(url) }
 
@@ -84,7 +84,7 @@ export async function runMcpServer(): Promise<void> {
     },
   )
 
-  // stdout dipakai protokol. Semua log harus lewat stderr.
+  // stdout carries the protocol. Every log must go to stderr.
   await server.connect(new StdioServerTransport())
-  console.error(`[litedesign] MCP server v${VERSION} siap (stdio)`)
+  console.error(`[litedesign] MCP server v${VERSION} ready (stdio)`)
 }

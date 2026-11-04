@@ -1,32 +1,32 @@
 # @rahmantech/litedesign
 
-Grid, gap, dan alignment ala Figma di halaman web asli — plus jembatan MCP
-supaya agent bisa membaca dan memperbaiki layout.
+Figma-style grid, gap, and alignment on the real web page — plus an MCP bridge
+so agents can read and fix layouts.
 
-## Pasang
+## Install
 
 ```bash
 npm i -g @rahmantech/litedesign
 litedesign setup
 ```
 
-`setup` menyalin extension ke `~/.litedesign/extension` dan mencetak langkah
-terakhir yang harus kamu lakukan manual: buka `chrome://extensions`, aktifkan
-Developer mode, lalu **Load unpacked** ke folder tersebut.
+`setup` copies the extension into `~/.litedesign/extension` and prints the one
+step you must do by hand: open `chrome://extensions`, enable Developer mode,
+then **Load unpacked** into that folder.
 
-Chrome tidak mengizinkan pemasangan extension secara programatik. Itu satu-
-satunya langkah manual.
+Chrome does not allow programmatic extension installation. That is the only
+manual step.
 
-## Pakai
+## Usage
 
 ```bash
-litedesign extension path     # cetak folder untuk Load unpacked
-litedesign extension update   # salin ulang setelah upgrade
-litedesign doctor             # cek node, extension, dan port
+litedesign extension path     # print the folder to load unpacked
+litedesign extension update   # re-copy after an upgrade
+litedesign doctor             # check node, extension, and port
 litedesign mcp                # MCP server (stdio)
 ```
 
-## Daftarkan ke MCP client
+## Register with an MCP client
 
 ```json
 {
@@ -39,13 +39,13 @@ litedesign mcp                # MCP server (stdio)
 }
 ```
 
-## Tanpa Playwright
+## Without Playwright
 
-Server berjalan dengan dua driver. Kalau `playwright-core` tidak terpasang,
-agent akan meminta kamu membuka halaman dan mengaktifkan extension. Itu bukan
-error — itu jalur normalnya.
+The server runs with two drivers. When `playwright-core` is not installed, the
+agent asks you to open the page and activate the extension. That is not an
+error — it is the normal path.
 
 ## Status
 
-v0.1.0 — kerangka. Measurement core masih node + rect; gap, alignment, dan rule
-engine menyusul di M1.
+v0.1.0 — scaffold. The measurement core is still node + rect; gaps, alignment,
+and the rule engine arrive in M1.

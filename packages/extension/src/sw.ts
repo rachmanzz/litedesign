@@ -1,7 +1,7 @@
 /**
- * Service worker sengaja tipis: hanya injeksi. Tidak menyimpan state, tidak
- * memegang koneksi. MV3 mematikan worker setelah idle, jadi apa pun yang perlu
- * hidup lama tidak boleh tinggal di sini.
+ * The service worker is deliberately thin: injection only. It stores no state
+ * and holds no connection. MV3 kills the worker after idle, so anything that
+ * must live longer does not belong here.
  */
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -13,6 +13,6 @@ chrome.action.onClicked.addListener(async (tab) => {
       files: ['core.iife.js', 'content.js'],
     })
   } catch (error) {
-    console.error('[litedesign] injeksi gagal', error)
+    console.error('[litedesign] injection failed', error)
   }
 })

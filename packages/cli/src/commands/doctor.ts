@@ -25,14 +25,14 @@ export async function doctor(): Promise<void> {
   console.log(`\n  litedesign doctor · v${VERSION}\n`)
 
   const major = Number(process.versions.node.split('.')[0])
-  line(major >= 20 ? 'ok' : 'fail', 'node', `v${process.versions.node} (butuh >= 20)`)
+  line(major >= 20 ? 'ok' : 'fail', 'node', `v${process.versions.node} (requires >= 20)`)
 
   const manifestPath = path.join(EXT_DIR, 'manifest.json')
   if (existsSync(manifestPath)) {
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { version?: string }
     line('ok', 'extension', `${EXT_DIR} (v${manifest.version ?? '?'})`)
   } else {
-    line('fail', 'extension', `tidak ada di ${EXT_DIR} — jalankan: litedesign setup`)
+    line('fail', 'extension', `missing at ${EXT_DIR} — run: litedesign setup`)
   }
 
   let port = DEFAULT_PORT
@@ -44,11 +44,11 @@ export async function doctor(): Promise<void> {
     mode = config.mode ?? mode
     line('ok', 'config', `port ${port}, mode ${mode}`)
   } else {
-    line('warn', 'config', 'belum ada — jalankan: litedesign setup')
+    line('warn', 'config', 'missing — run: litedesign setup')
   }
 
   const free = await portFree(port)
-  line(free ? 'ok' : 'warn', 'port', free ? `${port} bebas` : `${port} sedang dipakai`)
+  line(free ? 'ok' : 'warn', 'port', free ? `${port} free` : `${port} in use`)
 
   console.log('')
 }

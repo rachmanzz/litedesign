@@ -38,7 +38,7 @@ function readStyles(el: Element): Styles {
 }
 
 /**
- * v0: node + rect saja. Gap, alignment, dan rules menyusul di M1.
+ * v0: nodes and rects only. Gaps, alignment, and rules arrive in M1.
  */
 export function buildGraph(root: Element | null = null): Graph {
   const nodes: GraphNode[] = []

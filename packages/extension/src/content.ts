@@ -49,7 +49,7 @@ function mount(core: NonNullable<Window['__litedesign']>): void {
 const core = window.__litedesign
 
 if (!core) {
-  console.warn('[litedesign] core tidak ditemukan; core.iife.js harus disuntik lebih dulu')
+  console.warn('[litedesign] core not found; core.iife.js must be injected first')
 } else if (window[ACTIVE]) {
   unmount()
 } else {

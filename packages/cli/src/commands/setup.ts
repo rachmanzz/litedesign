@@ -8,7 +8,7 @@ export async function setup(): Promise<void> {
 
   if (!existsSync(source)) {
     throw new Error(
-      'aset extension tidak ditemukan di dalam paket. Jalankan ulang: npm i -g @rahmantech/litedesign',
+      'extension assets missing from the package. Reinstall: npm i -g @rahmantech/litedesign',
     )
   }
 
@@ -31,16 +31,16 @@ export async function setup(): Promise<void> {
   litedesign setup
 
   [1/3] extension   -> ${EXT_DIR}
-  [2/3] config      -> ${CONFIG}${configCreated ? '' : ' (sudah ada)'}
-  [3/3] selesai
+  [2/3] config      -> ${CONFIG}${configCreated ? '' : ' (already exists)'}
+  [3/3] done
 
-  Langkah terakhir, sekali saja:
+  One manual step:
 
-    1. buka chrome://extensions
-    2. aktifkan Developer mode
+    1. open chrome://extensions
+    2. enable Developer mode
     3. Load unpacked -> ${EXT_DIR}
 
-  Daftarkan ke MCP client:
+  Register with your MCP client:
 
   {
     "mcpServers": {

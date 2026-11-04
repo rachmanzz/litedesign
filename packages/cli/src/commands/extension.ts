@@ -14,5 +14,5 @@ export async function extensionCommand(args: string[]): Promise<void> {
     return
   }
 
-  throw new Error('pakai: litedesign extension <path|update>')
+  throw new Error('usage: litedesign extension <path|update>')
 }

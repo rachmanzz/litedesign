@@ -86,4 +86,4 @@ await buildCore()
 await buildExtension()
 await buildCli()
 
-console.log('\nbuild selesai')
+console.log('\nbuild done')

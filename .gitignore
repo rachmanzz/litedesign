@@ -1,15 +1,15 @@
-# --- dependensi & build ---
+# --- dependencies & build ---
 node_modules/
 dist/
 *.tsbuildinfo
 
-# --- semua path berawalan titik ---
+# --- every dot-prefixed path ---
 .*
-# kecuali CI/CD dan file aturan ignore itu sendiri
+# except CI/CD and this ignore file itself
 !.github/
 !.gitignore
 
-# --- aturan agent lokal ---
+# --- local agent rules ---
 AGENTS.md
 
 # --- knl-view (machine-local) ---
