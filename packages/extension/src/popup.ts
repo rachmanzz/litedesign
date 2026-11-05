@@ -19,6 +19,13 @@ watchButton.addEventListener('click', () => void toggleWatch())
 overlayButton.addEventListener('click', () => void toggleOverlay())
 void init()
 
+// The popup renders once and lives as long as it is open. Whatever was read
+// at mount can be stale minutes later — after an extension reload the bridge
+// line in particular is. Re-read whenever it becomes visible again.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) void init()
+})
+
 async function init(): Promise<void> {
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
   tab = active
@@ -82,7 +89,7 @@ async function refresh(): Promise<void> {
   const status = reply.result
   const watching = tab?.id !== undefined && status.page?.tabId === tab.id
 
-  watchButton.textContent = watching ? 'Watching this tab' : 'Watch this tab'
+  watchButton.textContent = watching ? 'Unwatch this tab' : 'Watch this tab'
   watchButton.disabled = tab?.id === undefined
 
   setStatus(
