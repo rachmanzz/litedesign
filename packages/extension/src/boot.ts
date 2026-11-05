@@ -1,4 +1,4 @@
-import { changedIds, signatures } from './diff.js'
+import { changedNodes, nodeSignatures } from './diff.js'
 import { addLabel, type Label, loadLabels, removeLabel, renameLabel } from './labels.js'
 import { type Observer, observeChanges } from './observer.js'
 import { clearSnapshot, loadSnapshot, loadState, saveSnapshot, saveState } from './store.js'
@@ -137,7 +137,7 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): strin
   }
 
   const refresh = (): void => {
-    const before = signatures(graph)
+    const before = nodeSignatures(graph)
     graph = core.buildGraph(root)
 
     // The edit that triggered this refresh may have removed the focused node.
@@ -149,11 +149,8 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): strin
 
     // Live mutation (HMR, in-page edits): spotlight what changed, so the
     // human sees the edit without the agent sending an explicit focus.
-    const changed = changedIds(before, signatures(graph))
-    if (changed.length > 0) {
-      const target = graph.nodes.find((node) => node.id === changed[0])
-      if (target !== undefined) setFocus(target.selector)
-    }
+    const changed = changedNodes(before, graph)
+    if (changed.length > 0) setFocus(changed[0].selector)
 
     handle?.update(graph)
     toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
@@ -326,20 +323,16 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): strin
     applyMarks()
   })
 
-  // Reload path of auto-focus: diff the fresh graph against the signatures
-  // the page had before it went away, and put the spotlight on the first
-  // change — that is what the user is waiting to see. Runs before the final
-  // saveState so the auto-focused selector is what gets persisted.
-  const previous = loadSnapshot()
+  // Reload path of auto-focus: diff the fresh graph against the content
+  // signatures the page had before it went away, and put the spotlight on the
+  // first change — that is what the user is waiting to see. Runs before the
+  // final saveState so the auto-focused selector is what gets persisted.
+  const before = loadSnapshot()
+  const changed = before !== null ? changedNodes(before, graph) : []
   let autoFocus: string | null = null
-  if (previous !== null) {
-    const changed = changedIds(previous, signatures(graph))
-    const target =
-      changed.length > 0 ? graph.nodes.find((node) => node.id === changed[0]) : undefined
-    if (target !== undefined) {
-      autoFocus = target.selector
-      setFocus(target.selector)
-    }
+  if (changed.length > 0) {
+    autoFocus = changed[0].selector
+    setFocus(changed[0].selector)
   }
   saveSnapshot(graph)
 

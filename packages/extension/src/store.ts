@@ -1,3 +1,4 @@
+import { nodeSignatures } from './diff.js'
 import type { Graph } from './types.js'
 import { GRID_STEPS, type GridConfig, LAYERS, type LayerName } from './types.js'
 
@@ -6,7 +7,8 @@ const STORAGE_KEY = 'litedesign'
 /**
  * Where the pre-reload content signatures live: `sessionStorage` survives a
  * reload inside the same tab and dies with it, exactly the lifetime the
- * reload-path diff needs. Keyed by node id, valued by `tag|text`.
+ * reload-path diff needs. A flat list of content signatures — the diff
+ * matches by content, so no node identities are stored.
  */
 const SNAPSHOT_KEY = 'litedesign-snapshot'
 
@@ -109,19 +111,14 @@ function isLayerName(value: unknown): value is LayerName {
   return typeof value === 'string' && (LAYERS as readonly string[]).includes(value)
 }
 
-export function loadSnapshot(): Map<string, string> | null {
+export function loadSnapshot(): string[] | null {
   try {
     const raw = sessionStorage.getItem(SNAPSHOT_KEY)
     if (raw === null) return null
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return null
-    return new Map(
-      parsed.flatMap((entry): Array<[string, string]> => {
-        if (!Array.isArray(entry) || entry.length !== 2) return []
-        if (typeof entry[0] !== 'string' || typeof entry[1] !== 'string') return []
-        return [[entry[0], entry[1]]]
-      }),
-    )
+    const signatures = parsed.filter((entry): entry is string => typeof entry === 'string')
+    return signatures.length === parsed.length ? signatures : null
   } catch {
     // A broken snapshot must never block the overlay; start empty instead.
     return null
@@ -130,7 +127,7 @@ export function loadSnapshot(): Map<string, string> | null {
 
 export function saveSnapshot(graph: Graph): void {
   try {
-    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify([...signatures(graph)]))
+    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(nodeSignatures(graph)))
   } catch {
     // Storage can be full or blocked; the overlay keeps working without it —
     // the cost is only that the next reload diff starts from nothing.

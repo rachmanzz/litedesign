@@ -473,13 +473,7 @@ suite('extension lifecycle', () => {
     await page.evaluate(() => {
       sessionStorage.setItem(
         'litedesign-snapshot',
-        JSON.stringify([
-          ['body:nth-child(2)', 'body|'],
-          ['body:nth-child(2) > div:nth-child(1)', 'div|'],
-          ['body:nth-child(2) > div:nth-child(1) > div:nth-child(1)', 'div|stale'],
-          ['body:nth-child(2) > div:nth-child(1) > div:nth-child(2)', 'div|Beta'],
-          ['body:nth-child(2) > div:nth-child(1) > div:nth-child(3)', 'div|Gamma'],
-        ]),
+        JSON.stringify(['body|', 'div|', 'div|stale', 'div|Beta', 'div|Gamma']),
       )
     })
 
