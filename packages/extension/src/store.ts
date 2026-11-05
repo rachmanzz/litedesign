@@ -1,6 +1,14 @@
+import type { Graph } from './types.js'
 import { GRID_STEPS, type GridConfig, LAYERS, type LayerName } from './types.js'
 
 const STORAGE_KEY = 'litedesign'
+
+/**
+ * Where the pre-reload content signatures live: `sessionStorage` survives a
+ * reload inside the same tab and dies with it, exactly the lifetime the
+ * reload-path diff needs. Keyed by node id, valued by `tag|text`.
+ */
+const SNAPSHOT_KEY = 'litedesign-snapshot'
 
 const DEFAULT_LAYERS: LayerName[] = [...LAYERS]
 
@@ -99,4 +107,40 @@ function parseLayers(value: unknown): LayerName[] {
 
 function isLayerName(value: unknown): value is LayerName {
   return typeof value === 'string' && (LAYERS as readonly string[]).includes(value)
+}
+
+export function loadSnapshot(): Map<string, string> | null {
+  try {
+    const raw = sessionStorage.getItem(SNAPSHOT_KEY)
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    return new Map(
+      parsed.flatMap((entry): Array<[string, string]> => {
+        if (!Array.isArray(entry) || entry.length !== 2) return []
+        if (typeof entry[0] !== 'string' || typeof entry[1] !== 'string') return []
+        return [[entry[0], entry[1]]]
+      }),
+    )
+  } catch {
+    // A broken snapshot must never block the overlay; start empty instead.
+    return null
+  }
+}
+
+export function saveSnapshot(graph: Graph): void {
+  try {
+    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify([...signatures(graph)]))
+  } catch {
+    // Storage can be full or blocked; the overlay keeps working without it —
+    // the cost is only that the next reload diff starts from nothing.
+  }
+}
+
+export function clearSnapshot(): void {
+  try {
+    sessionStorage.removeItem(SNAPSHOT_KEY)
+  } catch {
+    // Same reasoning as saveSnapshot: nothing to recover here.
+  }
 }

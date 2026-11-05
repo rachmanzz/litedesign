@@ -435,6 +435,68 @@ suite('extension lifecycle', () => {
     await page.close()
   })
 
+  it('spotlights a live text change without an explicit focus', async () => {
+    const { page, errors } = await open()
+    await mount(page)
+
+    expect(await page.evaluate(() => window.__litedesign_focus_selector__?.() ?? null)).toBeNull()
+
+    await page.evaluate(() => {
+      const card = document.querySelector('.row > div:nth-child(2)')
+      if (card !== null) card.textContent = 'Beta edited'
+    })
+    // One observer debounce plus the rebuild.
+    await page.waitForTimeout(300)
+
+    const focus = await page.evaluate(() => window.__litedesign_focus_selector__?.() ?? null)
+    expect(focus).not.toBeNull()
+    expect(
+      await page.evaluate((selector) => document.querySelector(selector)?.textContent ?? '', focus),
+    ).toBe('Beta edited')
+    expect(errors).toEqual([])
+
+    await page.close()
+  })
+
+  it('comes back from a reload focused on what changed, not on the old focus', async () => {
+    const { page, errors } = await open({
+      litedesign: {
+        enabled: true,
+        layers: ['grid', 'hover'],
+        focus: null,
+        grid: { step: 8, axis: 'both' },
+      },
+    })
+
+    // Stand in for "the file changed while the page was away": a snapshot the
+    // previous session took, with one text signature that no longer matches.
+    await page.evaluate(() => {
+      sessionStorage.setItem(
+        'litedesign-snapshot',
+        JSON.stringify([
+          ['body:nth-child(2)', 'body|'],
+          ['body:nth-child(2) > div:nth-child(1)', 'div|'],
+          ['body:nth-child(2) > div:nth-child(1) > div:nth-child(1)', 'div|stale'],
+          ['body:nth-child(2) > div:nth-child(1) > div:nth-child(2)', 'div|Beta'],
+          ['body:nth-child(2) > div:nth-child(1) > div:nth-child(3)', 'div|Gamma'],
+        ]),
+      )
+    })
+
+    await page.addScriptTag({ path: coreDist })
+    await page.addScriptTag({ path: contentDist })
+    await page.waitForFunction(() => window.__litedesign_state__ === 'active')
+
+    const focus = await page.evaluate(() => window.__litedesign_focus_selector__?.() ?? null)
+    expect(focus).not.toBeNull()
+    expect(
+      await page.evaluate((selector) => document.querySelector(selector)?.textContent ?? '', focus),
+    ).toBe('Alpha')
+    expect(errors).toEqual([])
+
+    await page.close()
+  })
+
   it('draws the labels the human pinned and reports them to the bridge', async () => {
     const { page, errors } = await open()
     await mount(page)

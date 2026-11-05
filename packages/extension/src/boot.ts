@@ -1,6 +1,7 @@
+import { changedIds, signatures } from './diff.js'
 import { addLabel, type Label, loadLabels, removeLabel, renameLabel } from './labels.js'
 import { type Observer, observeChanges } from './observer.js'
-import { loadState, saveState } from './store.js'
+import { clearSnapshot, loadSnapshot, loadState, saveSnapshot, saveState } from './store.js'
 import { createToolbar, type Toolbar } from './toolbar.js'
 import type { Core, Graph, GridConfig, LayerName, OverlayHandle } from './types.js'
 
@@ -67,20 +68,28 @@ export async function applyOverlay(
   const stored = await loadState()
   const layers = options.layers ?? stored.layers
 
+  let autoFocus: string | null = null
+
   if (window.__litedesign_state__ === 'active') {
     window.__litedesign_layers__?.(layers)
   } else {
     window.__litedesign_state__ = 'starting'
 
     try {
-      mount(core, layers, stored.grid)
+      autoFocus = mount(core, layers, stored.grid)
     } catch (error) {
       window.__litedesign_state__ = undefined
       throw error
     }
   }
 
-  if (options.focus !== undefined) window.__litedesign_set_focus__?.(options.focus)
+  // A change the page came back with beats the focus the previous session
+  // left behind: the user is waiting for the edit, not for a stale pointer.
+  // An explicit focus on a later call always wins — the overlay is already
+  // active then, so this branch never runs.
+  if (options.focus !== undefined && autoFocus === null) {
+    window.__litedesign_set_focus__?.(options.focus)
+  }
 
   return {
     enabled: overlayHost() !== undefined,
@@ -89,7 +98,7 @@ export async function applyOverlay(
   }
 }
 
-function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void {
+function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): string | null {
   // `document.body` can be missing if the user clicks before parsing finishes;
   // documentElement is always there and catches the body once it appears.
   const root = document.body ?? document.documentElement
@@ -121,10 +130,14 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
     window.__litedesign_set_focus__ = undefined
     window.__litedesign_focus_selector__ = undefined
     window.__litedesign_state__ = undefined
+    // While the overlay is off nothing is measured, so a kept snapshot would
+    // manufacture a fake "change" the next time the overlay comes back.
+    clearSnapshot()
     void saveState({ enabled: false, layers, focus: null, grid })
   }
 
   const refresh = (): void => {
+    const before = signatures(graph)
     graph = core.buildGraph(root)
 
     // The edit that triggered this refresh may have removed the focused node.
@@ -134,8 +147,17 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
       handle?.setFocus(null)
     }
 
+    // Live mutation (HMR, in-page edits): spotlight what changed, so the
+    // human sees the edit without the agent sending an explicit focus.
+    const changed = changedIds(before, signatures(graph))
+    if (changed.length > 0) {
+      const target = graph.nodes.find((node) => node.id === changed[0])
+      if (target !== undefined) setFocus(target.selector)
+    }
+
     handle?.update(graph)
     toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
+    saveSnapshot(graph)
   }
 
   const setLayers = (next: LayerName[]): void => {
@@ -304,6 +326,23 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
     applyMarks()
   })
 
+  // Reload path of auto-focus: diff the fresh graph against the signatures
+  // the page had before it went away, and put the spotlight on the first
+  // change — that is what the user is waiting to see. Runs before the final
+  // saveState so the auto-focused selector is what gets persisted.
+  const previous = loadSnapshot()
+  let autoFocus: string | null = null
+  if (previous !== null) {
+    const changed = changedIds(previous, signatures(graph))
+    const target =
+      changed.length > 0 ? graph.nodes.find((node) => node.id === changed[0]) : undefined
+    if (target !== undefined) {
+      autoFocus = target.selector
+      setFocus(target.selector)
+    }
+  }
+  saveSnapshot(graph)
+
   mountedHost = handle.host
   window.__litedesign_layers__ = setLayers
   window.__litedesign_set_focus__ = setFocus
@@ -314,4 +353,6 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): void 
   // A reload has to know the overlay was on, otherwise the next page load
   // starts clean and the grid vanishes on every save.
   void saveState({ enabled: true, layers, focus: focusSelector, grid })
+
+  return autoFocus
 }
