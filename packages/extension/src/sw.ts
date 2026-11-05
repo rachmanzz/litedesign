@@ -176,7 +176,35 @@ chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.status !== 'complete' || current?.tabId !== tabId) return
 
   void ensureContent(tabId).catch(() => undefined)
+  void refreshWatchedPage(tabId).catch(() => undefined)
 })
+
+/**
+ * Navigating inside the watched tab leaves the hub holding the old URL: the
+ * hub learns a URL only from `hello`. After the tab lands somewhere else,
+ * re-announce the binding — or release it when the new page is not
+ * measurable, so the hub never claims a URL that is not on screen.
+ */
+async function refreshWatchedPage(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId)
+
+  if (current?.tabId !== tabId) return // navigated away and back mid-flight
+  if (tab.url === current.url) return // same page, new load
+
+  if (!isSupported(tab.url)) {
+    current = undefined
+    await savePage(undefined)
+    send({ type: 'bye' })
+    await applyStatus()
+    return
+  }
+
+  const page: Page = { tabId, url: tab.url ?? '', title: tab.title ?? '' }
+  current = page
+  await savePage(page)
+  send({ type: 'hello', ...page, version: chrome.runtime.getManifest().version })
+  await applyStatus()
+}
 
 function connect(): void {
   if (socket !== undefined && socket.readyState <= WebSocket.OPEN) return
