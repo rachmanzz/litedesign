@@ -216,7 +216,7 @@ so an agent can pick litedesign up without any server configuration step:
 
 ```bash
 # As an agent skill (SKILL.md with the full working loop):
-npx skills add github:rachmanzz/litedesign
+npx skills add rachmanzz/litedesign
 ```
 
 The skill teaches the agent the same thing this README teaches a human: set up
