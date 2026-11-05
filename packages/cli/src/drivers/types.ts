@@ -78,7 +78,7 @@ export type Driver = {
   /** Draw or clear the overlay in the page the human is looking at. */
   overlay(options: OverlayOptions): Promise<OverlayResult>
   /** Names the human pinned in the page the human is looking at. */
-  labels(): Promise<LabelMark[]>
+  labels(): Promise<LabelMark[] | null>
   close(): Promise<void>
   /** Extension only: block until a page with this URL connects. */
   waitForPage?(url: string, timeoutMs: number): Promise<WaitResult>

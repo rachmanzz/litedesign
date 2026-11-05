@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { LAYERS } from '@litedesign/core'
+import { LAYERS, OVERLAY_HOST_ID } from '@litedesign/core'
 import type { Graph, GraphNode, Issue } from '@litedesign/core/types'
 import type { Browser, BrowserContext, LaunchOptions, Page } from 'playwright-core'
+import { sameUrl } from '../hub.js'
 import { ToolError } from '../mcp/errors.js'
 import type {
   AnnotateOptions,
@@ -14,11 +15,17 @@ import type {
   OverlayResult,
   ShotOptions,
   Viewport,
+  WaitResult,
 } from './types.js'
 
 type Playwright = typeof import('playwright-core')
 
 const DEFAULT_VIEWPORT = { width: 1280, height: 800 }
+const POLL_MS = 150
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 export type PlaywrightDriverOptions = {
   /** Override the injected measurement core. Used by tests and the CLI bundle. */
@@ -45,6 +52,32 @@ export class PlaywrightDriver implements Driver {
     )
     await page.goto(url, { waitUntil: 'load' })
     await this.#inject(page)
+  }
+
+  /**
+   * "Ready" means the page was read, not that `open` once succeeded: the tab
+   * can be closed or navigated away after that. The loop checks liveness and
+   * the URL the session asked for.
+   */
+  async waitForPage(url: string, timeoutMs: number): Promise<WaitResult> {
+    for (let waited = 0; waited < timeoutMs; waited += POLL_MS) {
+      const page = this.#page
+
+      if (page !== undefined && !page.isClosed() && sameUrl(page.url(), url)) {
+        return { status: 'ready', url: page.url() }
+      }
+
+      const current = this.#page
+      if (current !== undefined && !current.isClosed()) {
+        // A live tab on a different URL is a mismatch the caller reports; no
+        // point filling the timeout with it.
+        return { status: 'mismatch', url: current.url() }
+      }
+
+      await sleep(POLL_MS)
+    }
+
+    return { status: 'timeout' }
   }
 
   async graph(): Promise<Graph> {
@@ -187,10 +220,11 @@ export class PlaywrightDriver implements Driver {
 
   /**
    * Labels are marks the human makes through the toolbar; a headless page has
-   * no human in it, so there is nothing to read.
+   * no human in it. `null` says "cannot know", so `inspect` can report the
+   * truth instead of a `count: 0` that reads as "no labels pinned".
    */
-  async labels(): Promise<LabelMark[]> {
-    return []
+  async labels(): Promise<LabelMark[] | null> {
+    return null
   }
 
   async overlay(options: OverlayOptions): Promise<OverlayResult> {
@@ -218,7 +252,7 @@ export class PlaywrightDriver implements Driver {
 
         if (!input.enabled) {
           target.__litedesign_focus__ = null
-          return { enabled: false, layers: [], focus: null }
+          return { applied: false, focus: null }
         }
 
         const graph = target.__litedesign.buildGraph(document.body)
@@ -244,12 +278,24 @@ export class PlaywrightDriver implements Driver {
           }
         }
 
-        return { enabled: true, layers: input.layers, focus }
+        return { applied: true, focus }
       },
       { enabled: options.enabled, layers, focus: options.focus },
     )
 
-    return result
+    // The answer is a reading, not an echo: what the page actually carries
+    // decides what gets reported. If the overlay is not attached (a page that
+    // blocks it, an error mid-injection), `enabled` says so.
+    const attached = await page.evaluate(
+      (hostId) => document.getElementById(hostId) !== null,
+      OVERLAY_HOST_ID,
+    )
+
+    return {
+      enabled: attached,
+      layers: attached ? layers : [],
+      focus: attached ? result.focus : null,
+    }
   }
 
   async close(): Promise<void> {

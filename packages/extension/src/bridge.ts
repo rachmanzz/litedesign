@@ -1,5 +1,6 @@
 import { applyOverlay, boot, overlayHost } from './boot.js'
 import { loadLabels } from './labels.js'
+import { loadState } from './store.js'
 import type { Core, Graph, LayerName, OverlayHandle } from './types.js'
 
 type Payload = {
@@ -64,9 +65,13 @@ async function respond(core: Core, raw: unknown): Promise<Response> {
   switch (action) {
     case 'ping':
       return { ok: true, result: true }
-    case 'toggle':
+    case 'toggle': {
       await boot(core)
-      return { ok: true }
+      // Report the direction, not just success: the click may have turned the
+      // overlay off, and the caller (popup) must be able to say so.
+      const state = await loadState()
+      return { ok: true, result: { enabled: state.enabled } }
+    }
     case 'overlay':
       return {
         ok: true,

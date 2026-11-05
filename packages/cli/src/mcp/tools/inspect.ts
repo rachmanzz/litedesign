@@ -43,6 +43,7 @@ export async function inspectTool(input: InspectInput): Promise<ToolResult> {
   }
 
   const graph = await driver.graph()
+  // Headless: null is an honest unknown, never a fake "0 labels".
   const labels = labelsSummary(await driver.labels())
   const payload = {
     status: 'ready',
@@ -52,7 +53,7 @@ export async function inspectTool(input: InspectInput): Promise<ToolResult> {
       nodes: graph.nodes.length,
       issues: graph.issues.length,
       truncated: graph.truncated,
-      labels,
+      labels: labels ?? 'unknown: this driver cannot read the toolbar',
     },
     tree: formatTree(graph),
   }

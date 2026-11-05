@@ -12,6 +12,14 @@ export async function labelsTool(): Promise<ToolResult> {
   const driver = requirePage()
   const labels = await driver.labels()
 
+  if (labels === null) {
+    return textResult({
+      labels: null,
+      message:
+        'the active driver cannot see the toolbar (headless page). Open the page in your own Chrome to read labels.',
+    })
+  }
+
   return textResult({
     labels,
     count: labels.length,

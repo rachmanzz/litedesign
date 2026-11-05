@@ -42,9 +42,12 @@ export type LabelsSummary = { count: number; names: string[] }
 /**
  * Count of the pinned labels plus their unique names, in order of first
  * appearance. `inspect` carries this so an agent that never sees the labels
- * tool in its tool list still learns the page has labels.
+ * tool in its tool list still learns the page has labels. `null` means the
+ * driver cannot see the toolbar at all (headless): an unknown, not a zero.
  */
-export function labelsSummary(marks: LabelMark[]): LabelsSummary {
+export function labelsSummary(marks: LabelMark[] | null): LabelsSummary | null {
+  if (marks === null) return null
+
   const names: string[] = []
 
   for (const mark of marks) {

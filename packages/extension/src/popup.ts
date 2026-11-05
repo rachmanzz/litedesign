@@ -67,15 +67,22 @@ async function toggleWatch(): Promise<void> {
 async function toggleOverlay(): Promise<void> {
   if (tab?.id === undefined) return
 
-  const reply = await ask<unknown>({ type: 'overlay', tabId: tab.id })
+  const reply = await ask<{ enabled: boolean }>({ type: 'overlay', tabId: tab.id })
 
   if (!reply.ok) {
     setStatus(reply.error, true)
     return
   }
 
-  // The toolbar is on the page now; get out of its way.
-  window.close()
+  // Close only when the click turned the overlay on — its toolbar on the
+  // page takes over the moment it exists. Turning it off has nothing to
+  // hand over to, so the popup stays to say it.
+  await refresh()
+  if (reply.result.enabled) {
+    window.close()
+    return
+  }
+  setStatus('overlay off')
 }
 
 async function refresh(): Promise<void> {

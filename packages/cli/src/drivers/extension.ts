@@ -32,7 +32,17 @@ export class ExtensionDriver implements Driver {
   async open(url: string): Promise<void> {
     this.#target = url
 
-    if (this.#hub.find(url) !== undefined) return
+    // A cache hit is a claim, not a fact: the tab behind it can be closed.
+    // One cheap read guards it; on failure, attach like nothing was cached.
+    const cached = this.#hub.find(url)
+    if (cached !== undefined) {
+      try {
+        await this.#hub.request(cached.tabId, 'ping', undefined)
+        return
+      } catch {
+        // Stale cache entry — fall through to the normal attach path.
+      }
+    }
 
     if (!this.#hub.hasClient()) throw new AwaitingUserError(url)
 
@@ -92,7 +102,7 @@ export class ExtensionDriver implements Driver {
     return result
   }
 
-  async labels(): Promise<LabelMark[]> {
+  async labels(): Promise<LabelMark[] | null> {
     const result = await this.#request<
       { labels?: { text?: unknown; selector?: unknown }[] } | undefined
     >('labels')
