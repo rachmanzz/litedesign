@@ -24,6 +24,13 @@ it and learn the flow without a file in the repository.
   element under the cursor). Every layer is a toggle in the toolbar.
 - **Grid controls** — pick vertical, horizontal, or both directions by icon,
   and step the spacing from 8px to 128px. Your choice survives page reloads.
+- **Auto-focus on change** — when the page changes under the overlay (hot
+  reload, live DOM edit), the extension diffs the page content against a
+  snapshot taken before the reload and spotlights the first change by itself:
+  the human sees exactly which part an edit landed on, with no `focus` from
+  the agent. Matching is by content, so late-loading images that shift
+  element positions are not mistaken for edits. An explicit `focus` always
+  wins on later calls.
 - **Labels** — pin a name onto any part of the page from the toolbar; the
   badge stays through hot reloads, and the agent reads it back by name instead
   of guessing selectors.
@@ -87,10 +94,15 @@ then press **Reload** on the litedesign card in `chrome://extensions`.
 Open any `http(s)` page, then click the litedesign icon. The popup shows the
 bridge status and two actions:
 
-| Action           | What it does                                             |
-| ---------------- | -------------------------------------------------------- |
-| Watch this tab   | binds this tab as the page the agent measures            |
-| Toggle overlay   | turns the grid, guides, gap labels, and issues on or off |
+| Action             | What it does                                             |
+| ------------------ | -------------------------------------------------------- |
+| Watch / Unwatch    | toggles this tab as the page the agent measures — one tab at a time; unwatching also turns the overlay off |
+| Toggle overlay     | turns the grid, guides, gap labels, and issues on or off  |
+
+Only one tab is watched at a time: watching another tab releases the previous
+one. When the popup itself wakes the paused service worker, its first reading
+can precede the worker's socket — the popup re-reads once a second later, so
+a momentary "bridge offline" heals by itself.
 
 The overlay state (on/off, layers, focus, grid settings, labels) is stored in
 the extension, so a page reload no longer clears it.
@@ -189,6 +201,13 @@ Labels close the naming gap between you and the agent. When you say "the login
 card", the agent calls `labels`, finds the selector you pinned under that name,
 and focuses or measures exactly that element — no guessed selectors. Labels are
 yours: the agent reads them and cannot create or remove them.
+
+Edits close the pointing gap the other direction. Say the agent rewrites a text
+node and saves the file, or a dev server pushes a change while the overlay is
+on: the page reloads, the extension compares what the page was against what it
+came back as, and the first real change is spotlighted without a word from the
+agent. Between two live edits the overlay diffs what it just measured, so an
+HMR push on an already-mounted page behaves the same way.
 
 ## Drivers
 

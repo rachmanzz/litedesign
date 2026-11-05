@@ -451,7 +451,10 @@ suite('extension lifecycle', () => {
     const focus = await page.evaluate(() => window.__litedesign_focus_selector__?.() ?? null)
     expect(focus).not.toBeNull()
     expect(
-      await page.evaluate((selector) => document.querySelector(selector)?.textContent ?? '', focus),
+      await page.evaluate((selector) => {
+        if (selector === null) return null
+        return document.querySelector(selector)?.textContent ?? ''
+      }, focus),
     ).toBe('Beta edited')
     expect(errors).toEqual([])
 
@@ -484,7 +487,10 @@ suite('extension lifecycle', () => {
     const focus = await page.evaluate(() => window.__litedesign_focus_selector__?.() ?? null)
     expect(focus).not.toBeNull()
     expect(
-      await page.evaluate((selector) => document.querySelector(selector)?.textContent ?? '', focus),
+      await page.evaluate((selector) => {
+        if (selector === null) return null
+        return document.querySelector(selector)?.textContent ?? ''
+      }, focus),
     ).toBe('Alpha')
     expect(errors).toEqual([])
 

@@ -149,8 +149,8 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): strin
 
     // Live mutation (HMR, in-page edits): spotlight what changed, so the
     // human sees the edit without the agent sending an explicit focus.
-    const changed = changedNodes(before, graph)
-    if (changed.length > 0) setFocus(changed[0].selector)
+    const [firstChanged] = changedNodes(before, graph)
+    if (firstChanged !== undefined) setFocus(firstChanged.selector)
 
     handle?.update(graph)
     toolbar.setStats(graph.nodes.length, graph.issues.length, graph.truncated)
@@ -330,9 +330,10 @@ function mount(core: Core, initial: LayerName[], initialGrid: GridConfig): strin
   const before = loadSnapshot()
   const changed = before !== null ? changedNodes(before, graph) : []
   let autoFocus: string | null = null
-  if (changed.length > 0) {
-    autoFocus = changed[0].selector
-    setFocus(changed[0].selector)
+  const [firstChanged] = changed
+  if (firstChanged !== undefined) {
+    autoFocus = firstChanged.selector
+    setFocus(firstChanged.selector)
   }
   saveSnapshot(graph)
 
