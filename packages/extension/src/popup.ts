@@ -87,6 +87,13 @@ async function refresh(): Promise<void> {
   }
 
   const status = reply.result
+
+  // Opening the popup may itself wake the service worker from cold storage.
+  // Its first status reply can race its own socket (still connecting), which
+  // reads as offline while the bridge is fine. One delayed re-read heals
+  // that first read; while worker lives, nothing retries.
+  if (!status.bridge) scheduleRecheck()
+
   const watching = tab?.id !== undefined && status.page?.tabId === tab.id
 
   watchButton.textContent = watching ? 'Unwatch this tab' : 'Watch this tab'
@@ -99,6 +106,20 @@ async function refresh(): Promise<void> {
     !status.bridge,
   )
 }
+
+/**
+ * One delayed re-read, not a loop: a genuinely offline bridge stays reported
+ * after the recheck confirms it once.
+ */
+function scheduleRecheck(): void {
+  if (recheckTimer !== undefined) return
+  recheckTimer = setTimeout(() => {
+    recheckTimer = undefined
+    void refresh()
+  }, 1000)
+}
+
+let recheckTimer: ReturnType<typeof setTimeout> | undefined
 
 function setStatus(text: string, bad = false): void {
   statusLine.textContent = text
