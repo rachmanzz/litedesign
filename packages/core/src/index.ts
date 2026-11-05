@@ -16,4 +16,4 @@ export { defaultRules, findIssues, RULE_IDS, type Rule } from './rules/index.js'
 export * from './types.js'
 export { pathOf } from './walk.js'
 
-export const VERSION = '0.2.1'
+export const VERSION = '0.2.2'
