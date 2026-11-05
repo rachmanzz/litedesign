@@ -209,6 +209,23 @@ came back as, and the first real change is spotlighted without a word from the
 agent. Between two live edits the overlay diffs what it just measured, so an
 HMR push on an already-mounted page behaves the same way.
 
+## Install as a skill or plugin
+
+Beyond MCP, this repository ships artifacts that install straight from GitHub,
+so an agent can pick litedesign up without any server configuration step:
+
+```bash
+# As an agent skill (SKILL.md with the full working loop):
+npx skills add github:rachmanzz/litedesign
+```
+
+The skill teaches the agent the same thing this README teaches a human: set up
+the MCP server, inspect first, measure before editing, focus before and after
+an edit, treat labels as the human's, and trust readings over assertions. The
+plugin manifest at the repository root (`plugin.json`) exposes the same
+repository to plugin installers — the skill, the manifest, and the MCP server
+all describe one and the same tool.
+
 ## Drivers
 
 The MCP server picks a driver automatically:
