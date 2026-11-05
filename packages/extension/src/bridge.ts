@@ -1,6 +1,5 @@
 import { applyOverlay, boot, overlayHost } from './boot.js'
 import { loadLabels } from './labels.js'
-import { loadState } from './store.js'
 import type { Core, Graph, LayerName, OverlayHandle } from './types.js'
 
 type Payload = {
@@ -67,10 +66,11 @@ async function respond(core: Core, raw: unknown): Promise<Response> {
       return { ok: true, result: true }
     case 'toggle': {
       await boot(core)
-      // Report the direction, not just success: the click may have turned the
-      // overlay off, and the caller (popup) must be able to say so.
-      const state = await loadState()
-      return { ok: true, result: { enabled: state.enabled } }
+      // Report the direction from memory, not storage: boot persists with an
+      // un-awaited write, so a storage read can race it and report the
+      // pre-toggle state. `window.__litedesign_state__` is the fact boot
+      // itself just established.
+      return { ok: true, result: { enabled: window.__litedesign_state__ === 'active' } }
     }
     case 'overlay':
       return {

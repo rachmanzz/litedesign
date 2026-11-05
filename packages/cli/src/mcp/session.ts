@@ -48,10 +48,9 @@ export async function waitForPage(timeoutMs: number): Promise<SessionWait> {
   const expected = session.url
   const driver = session.driver
 
-  if (driver.waitForPage === undefined) {
-    return { status: 'ready', url: expected, expected }
-  }
-
+  // Every driver implements waitForPage now; the type enforces it. A default
+  // "ready" here would let a future driver without the method report a page
+  // it never read — the exact lie await_page exists to prevent.
   const result: WaitResult = await driver.waitForPage(expected, timeoutMs)
 
   if (result.status === 'ready') {

@@ -80,6 +80,10 @@ export type Driver = {
   /** Names the human pinned in the page the human is looking at. */
   labels(): Promise<LabelMark[] | null>
   close(): Promise<void>
-  /** Extension only: block until a page with this URL connects. */
-  waitForPage?(url: string, timeoutMs: number): Promise<WaitResult>
+  /**
+   * Block until a page with this URL connects. Every driver implements it:
+   * `await_page` must answer from a reading, never from assuming `open`
+   * succeeded once.
+   */
+  waitForPage(url: string, timeoutMs: number): Promise<WaitResult>
 }
