@@ -84,6 +84,9 @@ async function answer(message: unknown): Promise<BridgeResult> {
     case 'watch':
       if (typeof request.tabId !== 'number') throw new Error('watch needs a tab id')
       return { ok: true, result: await watch(request.tabId) }
+    case 'unwatch':
+      if (typeof request.tabId !== 'number') throw new Error('unwatch needs a tab id')
+      return { ok: true, result: await unwatch(request.tabId) }
     case 'overlay':
       if (typeof request.tabId !== 'number') throw new Error('overlay needs a tab id')
       return { ok: true, result: await toggleOverlay(request.tabId) }
@@ -122,6 +125,30 @@ async function watch(tabId: number): Promise<Page> {
   await applyStatus(tabId)
 
   return page
+}
+
+/**
+ * Releases the watched tab. The overlay on it goes down with the watch: the
+ * human asked to stop, and a floating overlay outliving the watch would read
+ * as "the extension ignored me". Only the watched tab is affected; detached
+ * content at hand is fine — idempotent, not an error.
+ */
+async function unwatch(tabId: number): Promise<Page | null> {
+  if (current?.tabId !== tabId) return null
+
+  try {
+    await chrome.tabs.sendMessage(tabId, { action: 'overlay', payload: { enabled: false } })
+  } catch {
+    // No content script (never injected, iframe reload, …) — nothing to turn
+    // off; the state it would have cleared is already gone with it.
+  }
+
+  current = undefined
+  await savePage(undefined)
+  send({ type: 'bye' })
+  await applyStatus()
+
+  return null
 }
 
 /** The overlay belongs to the watched tab, so watch it first when needed. */

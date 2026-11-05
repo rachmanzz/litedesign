@@ -15,7 +15,7 @@ const overlayButton = element<HTMLButtonElement>('overlay')
 
 let tab: chrome.tabs.Tab | undefined
 
-watchButton.addEventListener('click', () => void watchThisTab())
+watchButton.addEventListener('click', () => void toggleWatch())
 overlayButton.addEventListener('click', () => void toggleOverlay())
 void init()
 
@@ -30,17 +30,30 @@ async function init(): Promise<void> {
   await refresh()
 }
 
-async function watchThisTab(): Promise<void> {
+/**
+ * The button states the fact, not an offer: "Watching this tab" while the
+ * worker holds this tab — clicking it releases the tab, overlay included.
+ */
+async function toggleWatch(): Promise<void> {
   if (tab?.id === undefined) return
 
-  const reply = await ask<{ url: string }>({ type: 'watch', tabId: tab.id })
+  const status = await ask<BridgeStatus>({ type: 'status' })
+  if (!status.ok) {
+    setStatus(status.error, true)
+    return
+  }
+
+  const watching = status.result.page?.tabId === tab.id
+  const reply = await ask<{ url: string } | null>(
+    watching ? { type: 'unwatch', tabId: tab.id } : { type: 'watch', tabId: tab.id },
+  )
 
   if (!reply.ok) {
     setStatus(reply.error, true)
     return
   }
 
-  pageLine.textContent = reply.result.url
+  if (!watching && reply.result !== null) pageLine.textContent = reply.result.url
   await refresh()
 }
 
@@ -70,7 +83,7 @@ async function refresh(): Promise<void> {
   const watching = tab?.id !== undefined && status.page?.tabId === tab.id
 
   watchButton.textContent = watching ? 'Watching this tab' : 'Watch this tab'
-  watchButton.disabled = tab?.id === undefined || watching
+  watchButton.disabled = tab?.id === undefined
 
   setStatus(
     status.bridge
